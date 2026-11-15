@@ -81,7 +81,7 @@ type SalesCounterRootDomain = 'kreditmotorhonda.id' | 'kreditmotorhonda.tech' | 
 const getSalesCounterDomainSuffix = (hostname: string): SalesCounterRootDomain | undefined => {
   const normalized = hostname.toLocaleLowerCase('en-US').replace(/^www\./, '');
   const domains: SalesCounterRootDomain[] = ['kreditmotorhonda.id', 'kreditmotorhonda.tech', 'solusikreditmotor.cloud'];
-  return domains.find((domain) => domain === normalized);
+  return domains.find((domain) => domain === normalized || normalized.endsWith(`.${domain}`));
 };
 const getAdminCanonicalUrl = () => {
   const hostname = window.location.hostname.toLocaleLowerCase('en-US').replace(/^www\./, '');
@@ -181,7 +181,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [securityForm, setSecurityForm] = useState({ username: '', password: '', role: 'Staff Admin', assignedSeoPageId: '' });
+  const [securityForm, setSecurityForm] = useState({ username: '', password: '', role: 'admin', assignedSeoPageId: '' });
   const [accountUsername, setAccountUsername] = useState('');
   const [passwordChangeForm, setPasswordChangeForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -197,12 +197,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const [promos, setPromos] = useState<Promo[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [settings, setSettings] = useState<DealerSettings | null>(null);
+<<<<<<< HEAD
+  const isSuperAdmin = ['superadmin', 'Super Admin'].includes(adminSession?.role || '');
+  const isPosSuperAdmin = ['superadmin pos', 'Super Admin POS'].includes(adminSession?.role || '');
+  const isSeoPostAdmin = isPosSuperAdmin;
+  const allowedAdminTabs = isSuperAdmin
+    ? null
+    : isPosSuperAdmin
+      ? new Set(['articles', 'testimonials', 'settings', 'theme', 'seo-subdomains', 'seo-posts', 'security', 'sales-counter'])
+      : new Set(['articles', 'testimonials', 'settings', 'theme', 'security']);
+=======
   const isSuperAdmin = adminSession?.role === 'Super Admin';
   // Non-super-admin accounts are scoped to their assigned domain/post.
   // Keep their CMS surface intentionally small: summary, leads, promos,
   // articles, and dealer settings only.
   const isSeoPostAdmin = adminSession?.role !== 'Super Admin';
   const domainAdminTabs = new Set(['dashboard', 'leads', 'promos', 'articles', 'settings', 'theme']);
+>>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
   const [seoSubdomainEditor, setSeoSubdomainEditor] = useState<SeoLandingPage | null>(null);
   const [seoPageEditor, setSeoPageEditor] = useState<SeoPostEditor | null>(null);
   const [isSavingSeoPage, setIsSavingSeoPage] = useState(false);
@@ -214,10 +225,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const [editingSalesCounterSeoId, setEditingSalesCounterSeoId] = useState<string | null>(null);
   const [salesCounterSeoForm, setSalesCounterSeoForm] = useState({ seoTitle: '', seoDescription: '', seoKeywords: '', seoRobots: 'index, follow' });
   const [isSavingSalesCounterSeo, setIsSavingSalesCounterSeo] = useState(false);
-  const [salesCounterForm, setSalesCounterForm] = useState({ name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoKeywords: '' });
+  const [salesCounterForm, setSalesCounterForm] = useState({ siteType: 'pos' as 'pos' | 'sales-counter', name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoKeywords: '' });
   const [isSavingSalesCounter, setIsSavingSalesCounter] = useState(false);
   const salesCounterDomainSuffix = getSalesCounterDomainSuffix(window.location.hostname);
-  const canManageSalesCounters = isSuperAdmin && Boolean(salesCounterDomainSuffix);
+  const canManageSalesCounters = (isSuperAdmin && Boolean(salesCounterDomainSuffix)) || isPosSuperAdmin;
   const [analytics, setAnalytics] = useState<any>(null);
   const [visitorFilter, setVisitorFilter] = useState<'all' | '7d' | '30d' | 'today' | 'custom'>('7d');
   const [visitorStartDate, setVisitorStartDate] = useState('');
@@ -311,7 +322,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   }, [settings]);
 
   useEffect(() => {
-    if (isSeoPostAdmin && !['promos', 'settings', 'theme'].includes(activeTab)) setActiveTab('theme');
+    if (isSeoPostAdmin && !['articles', 'testimonials', 'settings', 'theme', 'seo-subdomains', 'seo-posts', 'security', 'sales-counter'].includes(activeTab)) {
+      setActiveTab('sales-counter');
+    }
   }, [activeTab, isSeoPostAdmin]);
 
   const toggleAdminTheme = () => {
@@ -368,7 +381,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     }
 
     api.getAdminMe()
-      .then(setAdminSession)
+      .then((session) => {
+        setAdminSession(session);
+        if (['admin', 'Staff Admin'].includes(session.role)) setActiveTab('articles');
+        else if (['superadmin pos', 'Super Admin POS'].includes(session.role)) setActiveTab('sales-counter');
+      })
       .catch(() => {
         localStorage.removeItem('hwa-admin-token');
         setAdminSession(null);
@@ -485,16 +502,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
 
   const handleCreateSalesCounter = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!salesCounterDomainSuffix) return;
+    if (!salesCounterDomainSuffix && !isPosSuperAdmin) return;
     setIsSavingSalesCounter(true);
     try {
       const created = await api.createSalesCounter({
         ...salesCounterForm,
+        siteType: isPosSuperAdmin ? 'sales-counter' : salesCounterForm.siteType,
         subdomain: salesCounterForm.subdomain.trim().toLocaleLowerCase('id-ID'),
       });
       setSalesCounters((current) => [created, ...current.filter((counter) => counter.id !== created.id)]);
-      setSalesCounterForm({ name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoKeywords: '' });
-      showToast(`Sales Counter ${created.subdomain}.${created.domainSuffix} berhasil dibuat`);
+      setSalesCounterForm({ siteType: isPosSuperAdmin ? 'sales-counter' : 'pos', name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoKeywords: '' });
+      showToast(`${created.siteType === 'pos' ? 'POS' : 'Sales Counter'} ${created.subdomain}.${created.domainSuffix} berhasil dibuat`);
     } catch (error: any) {
       alert(error.message || 'Gagal membuat Sales Counter');
     } finally {
@@ -549,7 +567,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     event.preventDefault();
     try {
       await api.createAdminUser(securityForm);
-      setSecurityForm({ username: '', password: '', role: 'Staff Admin', assignedSeoPageId: '' });
+      setSecurityForm({ username: '', password: '', role: 'admin', assignedSeoPageId: '' });
       await refreshSecurityData();
       showToast('Admin baru berhasil dibuat');
     } catch (error: any) {
@@ -1589,7 +1607,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     }
 
     const currentPages = settings.seoPages || [];
-    const subdomainPage = currentPages.find((page) => page.subdomain === subdomain);
+    const domainSuffix = salesCounterDomainSuffix || 'kreditmotorhonda.tech';
+    const parentSeoPageId = isPosSuperAdmin ? adminSession.assignedSeoPageId : undefined;
+    const subdomainPage = currentPages.find((page) => page.subdomain === subdomain
+      && (page.domainSuffix || 'kreditmotorhonda.tech') === domainSuffix
+      && (isPosSuperAdmin ? page.parentSeoPageId === parentSeoPageId : !page.parentSeoPageId));
     const currentPosts = subdomainPage ? getSeoLandingPosts(subdomainPage) : [];
     if (subdomainPage && currentPosts.some((post) => post.slug === slug && post.id !== seoPageEditor.id)) {
       alert('Slug tersebut sudah digunakan pada subdomain ini. Pilih judul atau slug lain.');
@@ -1608,6 +1630,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     const generatedPage: SeoLandingPage = {
       id: subdomainPage?.id || `seo-page-${Date.now()}`,
       subdomain,
+      domainSuffix: subdomainPage?.domainSuffix || domainSuffix,
+      ...(subdomainPage?.parentSeoPageId || parentSeoPageId ? { parentSeoPageId: subdomainPage?.parentSeoPageId || parentSeoPageId } : {}),
       adminUserId: subdomainPage?.adminUserId || adminSession.id,
       title: seoTitle,
       content: subdomainPage?.content || '',
@@ -1661,7 +1685,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     const continuePostCreation = activeTab === 'seo-posts' && Boolean(seoPageEditor && !seoPageEditor.id);
     const subdomain = slugifySubdomain(seoSubdomainEditor.subdomain);
     const seoTitle = seoSubdomainEditor.seoTitle.trim();
-    const adminUser = adminUsers.find((user) => user.id === seoSubdomainEditor.adminUserId);
+    const adminUser = isPosSuperAdmin
+      ? adminUsers.find((user) => user.id === adminSession.id)
+      : adminUsers.find((user) => user.id === seoSubdomainEditor.adminUserId);
     if (!subdomain || !seoTitle || !adminUser) {
       alert('Subdomain, judul SEO, dan admin penanggung jawab wajib diisi.');
       return;
@@ -1673,7 +1699,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     }
 
     const currentPages = settings.seoPages || [];
-    if (currentPages.some((page) => page.subdomain === subdomain && page.id !== seoSubdomainEditor.id)) {
+    const domainSuffix = salesCounterDomainSuffix || 'kreditmotorhonda.tech';
+    const parentSeoPageId = isPosSuperAdmin ? adminSession.assignedSeoPageId : undefined;
+    if (currentPages.some((page) => page.subdomain === subdomain
+      && (page.domainSuffix || 'kreditmotorhonda.tech') === domainSuffix
+      && (isPosSuperAdmin ? page.parentSeoPageId === parentSeoPageId : !page.parentSeoPageId)
+      && page.id !== seoSubdomainEditor.id)) {
       alert('Subdomain tersebut sudah digunakan. Pilih subdomain lain.');
       return;
     }
@@ -1685,6 +1716,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
       domainSuffix: seoSubdomainEditor.domainSuffix || getAdminDomainSuffix(),
       id: existingPage?.id || `seo-page-${Date.now()}`,
       subdomain,
+      domainSuffix: existingPage?.domainSuffix || domainSuffix,
+      ...((existingPage?.parentSeoPageId || parentSeoPageId) ? { parentSeoPageId: existingPage?.parentSeoPageId || parentSeoPageId } : {}),
       adminUserId: adminUser.id,
       title: existingPage?.content.trim() ? existingPage.title : seoTitle,
       content: existingPage?.content || '',
@@ -2100,11 +2133,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
               { id: 'export', label: 'Download & Backup Data', icon: Download },
             ].filter((tab) => {
               if (tab.id === 'sales-counter') return canManageSalesCounters;
+<<<<<<< HEAD
+              if (tab.id === 'motors') return isSuperAdmin;
+              if (tab.id === 'credit') return isSuperAdmin && canManageCatalog;
+              return isSuperAdmin || Boolean(allowedAdminTabs?.has(tab.id));
+=======
               if (tab.id === 'motors') return true;
               if (tab.id === 'credit') return canManageCatalog;
               if (isSuperAdmin) return true;
               if (isSeoPostAdmin) return domainAdminTabs.has(tab.id);
               return true;
+>>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
             }).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -2529,13 +2568,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
             {activeTab === 'sales-counter' && canManageSalesCounters && (
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Sales Counter</h2>
-                  <p className="mt-1 text-xs text-zinc-400">Kelola subdomain, akun admin, dan akses tiap sales counter.</p>
+                  <h2 className="text-lg font-bold text-white">{isPosSuperAdmin ? 'Sales Counter POS' : 'POS & Sales Counter'}</h2>
+                  <p className="mt-1 text-xs text-zinc-400">{isPosSuperAdmin ? 'Kelola Sales Counter turunan POS ini.' : 'Buat POS utama atau Sales Counter pada domain ini.'}</p>
                 </div>
 
                 <section className="space-y-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-5">
                   <form onSubmit={handleCreateSalesCounter} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    <input required value={salesCounterForm.name} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, name: event.target.value })} placeholder="Nama sales counter" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
+                    {isSuperAdmin && (
+                      <label className="space-y-1 text-[11px] font-semibold text-zinc-400">
+                        Tipe website
+                        <select value={salesCounterForm.siteType} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, siteType: event.target.value as 'pos' | 'sales-counter' })} className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none">
+                          <option value="pos">POS</option>
+                          <option value="sales-counter">Sales Counter (SC)</option>
+                        </select>
+                      </label>
+                    )}
+                    <input required value={salesCounterForm.name} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, name: event.target.value })} placeholder={salesCounterForm.siteType === 'pos' && isSuperAdmin ? 'Nama POS' : 'Nama sales counter'} className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <input required type="tel" value={salesCounterForm.phone} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, phone: event.target.value })} placeholder="Nomor WhatsApp (62...)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <div className="flex min-w-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-950 focus-within:border-red-500">
                       <input required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={63} value={salesCounterForm.subdomain} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, subdomain: event.target.value.toLocaleLowerCase('id-ID').replace(/[^a-z0-9-]/g, '') })} placeholder="Subdomain" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none" />
@@ -2548,7 +2596,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                     <input maxLength={300} value={salesCounterForm.seoKeywords} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoKeywords: event.target.value })} placeholder="Kata kunci SEO (opsional, pisahkan dengan koma)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <button type="submit" disabled={isSavingSalesCounter} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-500 disabled:cursor-wait disabled:opacity-60">
                       <Plus className="h-4 w-4" />
-                      {isSavingSalesCounter ? 'Membuat website...' : 'Tambah Sales Counter'}
+                      {isSavingSalesCounter ? 'Membuat website...' : isPosSuperAdmin ? 'Tambah SC di POS' : salesCounterForm.siteType === 'pos' ? 'Buat POS' : 'Tambah Sales Counter'}
                     </button>
                   </form>
                 </section>
@@ -4013,18 +4061,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                       <input required value={securityForm.username} onChange={(event) => setSecurityForm({ ...securityForm, username: event.target.value })} placeholder="Username admin baru" className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                       <input required type="password" minLength={8} value={securityForm.password} onChange={(event) => setSecurityForm({ ...securityForm, password: event.target.value })} placeholder="Password admin baru" className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                       <select value={securityForm.role} onChange={(event) => setSecurityForm({ ...securityForm, role: event.target.value })} className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none">
-                        <option>Staff Admin</option>
-                        <option>Super Admin</option>
+                        <option value="admin">Admin</option>
+                        <option value="superadmin pos">Superadmin POS</option>
+                        <option value="superadmin">Superadmin</option>
                       </select>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">Admin Pos</label>
+                        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
+                          {securityForm.role === 'superadmin pos' ? 'POS yang dikelola' : 'Website yang dikelola'}
+                        </label>
                         <select
                           value={securityForm.assignedSeoPageId}
                           onChange={(event) => setSecurityForm({ ...securityForm, assignedSeoPageId: event.target.value })}
                           className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
                         >
+<<<<<<< HEAD
+                          <option value="">{securityForm.role === 'superadmin' ? 'Semua domain utama' : 'Pilih website'}</option>
+                          {(settings?.seoPages || []).filter((page) => securityForm.role !== 'superadmin pos' || page.siteType === 'pos').map((page) => (
+=======
                           <option value="">Tanpa admin pos</option>
                             {scopedSeoPages.map((page) => (
+>>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
                             <option key={page.id} value={page.id}>{page.subdomain}.{page.domainSuffix || 'kreditmotorhonda.tech'}</option>
                           ))}
                         </select>

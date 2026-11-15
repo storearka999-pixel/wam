@@ -93,7 +93,9 @@ export interface SeoLandingPage {
   id: string;
   subdomain: string;
   domainSuffix?: 'kreditmotorhonda.id' | 'kreditmotorhonda.tech' | 'solusikreditmotor.cloud';
-  siteType?: 'sales-counter';
+  siteType?: 'pos' | 'sales-counter';
+  parentSeoPageId?: string | null;
+  posAdminUserIds?: string[];
   adminUserId: string;
   title: string;
   content: string;
@@ -111,6 +113,8 @@ export interface SeoLandingPage {
 
 export interface SalesCounterSite {
   id: string;
+  siteType: 'pos' | 'sales-counter';
+  parentSeoPageId?: string | null;
   subdomain: string;
   domainSuffix: 'kreditmotorhonda.id' | 'kreditmotorhonda.tech' | 'solusikreditmotor.cloud';
   name: string;
@@ -256,6 +260,8 @@ export interface AdminSession {
   username: string;
   role: string;
   createdAt?: string;
+  assignedSeoPageId?: string;
+  assignedHost?: string;
 }
 
 export interface AdminUser {
@@ -265,6 +271,7 @@ export interface AdminUser {
   created_at?: string;
   updated_at?: string;
   assignedSeoPageId?: string | null;
+  assignedHost?: string | null;
   assignedSeoPage?: {
     id: string;
     subdomain: string;
