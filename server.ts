@@ -42,7 +42,25 @@ const execFileAsync = promisify(execFile);
 const DEFAULT_FIF_PRICE_LIST_FILE = path.join(process.cwd(), 'src', 'data', 'fifPriceList.json');
 const FIF_TENORS = [11, 17, 23, 29, 35];
 const FIF_DP_PERCENTAGES = [10, 13, 15, 20, 25];
-const sessions = new Map<string, { id: string; username: string; role: string; createdAt: string }>();
+const ADMIN_ROLE_GLOBAL = 'superadmin';
+const ADMIN_ROLE_POS = 'superadmin pos';
+const ADMIN_ROLE_LIMITED = 'admin';
+const sessions = new Map<string, { id: string; username: string; role: string; createdAt: string; assignedSeoPageId?: string; assignedHost?: string }>();
+
+function normalizeAdminRole(role: unknown) {
+  const normalized = String(role || '').trim().toLocaleLowerCase('id-ID').replace(/[\s_-]+/g, ' ');
+  if (['super admin', 'superadmin'].includes(normalized)) return ADMIN_ROLE_GLOBAL;
+  if (['super admin pos', 'superadmin pos', 'superadmin khusus pos'].includes(normalized)) return ADMIN_ROLE_POS;
+  return ADMIN_ROLE_LIMITED;
+}
+
+function isGlobalSuperAdmin(session: any) {
+  return normalizeAdminRole(session?.role) === ADMIN_ROLE_GLOBAL;
+}
+
+function isPosSuperAdmin(session: any) {
+  return normalizeAdminRole(session?.role) === ADMIN_ROLE_POS;
+}
 
 // Ensure directories exist
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1664,17 +1682,27 @@ function ensureAdminUsers(db: any) {
       id: 'admin-abadi',
       username: '@Abadi',
       passwordHash: hashPassword('@MuliaB2026'),
-      role: 'Super Admin',
+      role: ADMIN_ROLE_GLOBAL,
       created_at: new Date().toISOString(),
     }];
     writeDb(db);
+  } else {
+    let rolesChanged = false;
+    for (const user of db.adminUsers) {
+      const normalizedRole = normalizeAdminRole(user.role);
+      if (user.role !== normalizedRole) {
+        user.role = normalizedRole;
+        rolesChanged = true;
+      }
+    }
+    if (rolesChanged) writeDb(db);
   }
   return db.adminUsers;
 }
 
 function publicAdminUser(user: any, db: any = readDb()) {
   const assignedSeoPages = Array.isArray((db.settings || {}).seoPages)
-    ? (db.settings || {}).seoPages.filter((page: any) => page.adminUserId === user.id)
+    ? (db.settings || {}).seoPages.filter((page: any) => page.adminUserId === user.id || (page.posAdminUserIds || []).includes(user.id))
     : [];
   const assignedSeoPage = assignedSeoPages[0]
     ? {
@@ -1690,6 +1718,7 @@ function publicAdminUser(user: any, db: any = readDb()) {
     role: user.role,
     created_at: user.created_at,
     updated_at: user.updated_at,
+    assignedHost: user.assignedHost || null,
     assignedSeoPageId: assignedSeoPage?.id || null,
     assignedSeoPage,
     assignedSeoPages: assignedSeoPages.map((page: any) => ({
@@ -1827,27 +1856,143 @@ function isAdminAuthorizedForHost(session: any, hostname: string, db: any = read
   if (!session) return false;
 
   const host = normalizeAdminHost(hostname);
-  if (session.role === 'Super Admin') return isSuperAdminAllowedHost(host);
+  const role = normalizeAdminRole(session.role);
+  if (role === ADMIN_ROLE_GLOBAL) return isSuperAdminAllowedHost(host);
 
+  const pages = Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [];
   const hostPost = getSeoPageForHost(db.settings || {}, host);
-  if (hostPost) {
-    return session.id === hostPost.adminUserId;
+  if (role === ADMIN_ROLE_POS) {
+    const assignedPos = pages.find((page: any) => page.id === session.assignedSeoPageId
+      && page.siteType === 'pos'
+      && (page.adminUserId === session.id || (page.posAdminUserIds || []).includes(session.id)));
+    if (!assignedPos) return false;
+    if (hostPost?.id === assignedPos.id) return true;
+    return Boolean(hostPost?.parentSeoPageId === assignedPos.id
+      && getSeoPageDomainSuffix(hostPost) === getSeoPageDomainSuffix(assignedPos));
   }
 
-  const assignedSeoPage = Array.isArray(db.settings?.seoPages)
-    ? db.settings.seoPages.find((page: any) => page.adminUserId === session.id)
-    : undefined;
-  if (!assignedSeoPage) return false;
+  if (session.assignedHost) return normalizeAdminHost(session.assignedHost) === host;
+  if (hostPost) return session.id === hostPost.adminUserId;
+  return pages.some((page: any) => page.adminUserId === session.id
+    && normalizeAdminHost(`${page.subdomain}.${getSeoPageDomainSuffix(page)}`) === host);
+}
 
-  const assignedHost = String(assignedSeoPage.subdomain || '').trim().toLowerCase();
-  if (!assignedHost) return false;
+function isAdminRouteAllowed(session: any, method: string, pathname: string) {
+  const role = normalizeAdminRole(session?.role);
+  if (role === ADMIN_ROLE_GLOBAL) return true;
+  const normalizedPath = pathname.split('?')[0];
+  const isArticleOrTestimonial = /^\/api\/(?:articles|testimonials)(?:\/[^/]+)?$/.test(normalizedPath);
+  const isContentWrite = ['POST', 'PUT', 'DELETE'].includes(method) && isArticleOrTestimonial;
+  const isSettingsWrite = method === 'PUT' && normalizedPath === '/api/settings';
+  const isUpload = method === 'POST' && normalizedPath === '/api/upload';
+  const isLogout = method === 'POST' && normalizedPath === '/api/admin/logout';
+  const isPasswordChange = method === 'POST' && normalizedPath === '/api/admin/change-password';
+  const isOwnAccountUpdate = method === 'PUT'
+    && normalizedPath === `/api/admin/users/${encodeURIComponent(String(session?.id || ''))}`;
+  const isSafeRead = ['GET', 'HEAD'].includes(method) && [
+    '/api/admin/me', '/api/admin/users', '/api/admin/audit', '/api/catalog/status', '/api/settings',
+  ].includes(normalizedPath);
+  const isPosRead = role === ADMIN_ROLE_POS && ['GET', 'HEAD'].includes(method)
+    && normalizedPath === '/api/admin/sales-counters';
+  const isPosWrite = role === ADMIN_ROLE_POS && (
+    (['POST', 'DELETE', 'PUT'].includes(method) && /^\/api\/admin\/sales-counters(?:\/[^/]+(?:\/seo)?)?$/.test(normalizedPath))
+    || (method === 'POST' && /^\/api\/admin\/seo-pages\/[^/]+\/provision-ssl$/.test(normalizedPath))
+  );
 
-  const permittedHosts = new Set([
-    `${assignedHost}.kreditmotorhonda.tech`,
-    `${assignedHost}.solusikreditmotor.cloud`,
-    `${assignedHost}.kreditmotorhonda.id`,
-  ]);
-  return permittedHosts.has(host);
+  return isSafeRead || isPosRead || isContentWrite || isSettingsWrite || isUpload
+    || isLogout || isPasswordChange || isOwnAccountUpdate || isPosWrite;
+}
+
+function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPages: any) {
+  if (!Array.isArray(requestedPages)) return 'Daftar subdomain POS tidak valid.';
+  const pages = Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [];
+  const currentChildren = pages.filter((page: any) => page.parentSeoPageId === posPage.id);
+  if (requestedPages.some((page: any) => !page || (page.id !== posPage.id && page.parentSeoPageId !== posPage.id))) {
+    return 'POS hanya dapat mengelola subdomain turunannya sendiri.';
+  }
+
+  const requestedChildren = requestedPages.filter((page: any) => page.id !== posPage.id);
+  const currentChildIds = new Set(currentChildren.map((page: any) => page.id));
+  const normalizedChildren: any[] = [];
+  const seenSubdomains = new Set<string>();
+  const domainSuffix = getSeoPageDomainSuffix(posPage);
+
+  for (const rawPage of requestedChildren) {
+    const id = String(rawPage.id || '').trim();
+    const existing = currentChildren.find((page: any) => page.id === id);
+    if ((!existing && !/^seo-page-[a-zA-Z0-9-]+$/.test(id)) || (existing && existing.siteType === 'pos')) {
+      return 'ID subdomain tidak valid untuk POS ini.';
+    }
+    const subdomain = String(rawPage.subdomain || '').trim().toLocaleLowerCase('en-US');
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain) || RESERVED_SEO_SUBDOMAINS.has(subdomain)) {
+      return 'Format subdomain turunan tidak valid.';
+    }
+    if (seenSubdomains.has(subdomain) || pages.some((page: any) => page.id !== id
+      && page.parentSeoPageId !== posPage.id
+      && page.subdomain === subdomain
+      && getSeoPageDomainSuffix(page) === domainSuffix)) {
+      return `Subdomain ${subdomain} sudah digunakan pada domain ini.`;
+    }
+    seenSubdomains.add(subdomain);
+
+    const previousPosts = getSeoLandingPosts(existing || {});
+    const requestedPosts = Array.isArray(rawPage.posts) ? rawPage.posts : previousPosts;
+    const posts: any[] = [];
+    for (const rawPost of requestedPosts) {
+      const previousPost = previousPosts.find((post: any) => post.id === rawPost.id);
+      const slug = String(rawPost.slug || '').trim().toLocaleLowerCase('en-US');
+      const title = String(rawPost.title || '').trim();
+      const content = String(rawPost.content || '').trim();
+      if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug) || !title || !content) {
+        return 'Judul, slug, atau isi post turunan tidak valid.';
+      }
+      posts.push({
+        id: String(rawPost.id || previousPost?.id || `seo-post-${crypto.randomUUID()}`),
+        slug,
+        title,
+        content,
+        authorUsername: previousPost?.authorUsername || session.username,
+        authorRole: previousPost?.authorRole || session.role,
+        created_at: previousPost?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    normalizedChildren.push({
+      ...(existing || {}),
+      id,
+      subdomain,
+      domainSuffix,
+      parentSeoPageId: posPage.id,
+      ...(existing?.siteType === 'sales-counter' ? { siteType: 'sales-counter' } : { siteType: undefined }),
+      adminUserId: existing?.adminUserId || session.id,
+      title: String(rawPage.title || rawPage.seoTitle || existing?.title || subdomain).trim().slice(0, 120),
+      content: String(rawPage.content ?? existing?.content ?? '').trim(),
+      seoTitle: String(rawPage.seoTitle || rawPage.title || existing?.seoTitle || '').trim().slice(0, 70),
+      seoDescription: String(rawPage.seoDescription ?? existing?.seoDescription ?? '').trim().slice(0, 160),
+      seoKeywords: String(rawPage.seoKeywords ?? existing?.seoKeywords ?? '').trim().slice(0, 300),
+      seoRobots: ['index, follow', 'noindex, follow', 'index, nofollow', 'noindex, nofollow'].includes(rawPage.seoRobots)
+        ? rawPage.seoRobots
+        : existing?.seoRobots || 'index, follow',
+      posts,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  const deletedIds = new Set(currentChildren.filter((page: any) => !normalizedChildren.some((next) => next.id === page.id)).map((page: any) => page.id));
+  const deletedUsers = new Set(currentChildren
+    .filter((page: any) => deletedIds.has(page.id))
+    .flatMap((page: any) => [page.adminUserId, ...(page.posAdminUserIds || [])])
+    .filter((id: string) => id && id !== session.id));
+  if (deletedUsers.size) {
+    db.adminUsers = (Array.isArray(db.adminUsers) ? db.adminUsers : []).filter((user: any) => !deletedUsers.has(user.id));
+    for (const [token, activeSession] of sessions) {
+      if (deletedUsers.has(activeSession.id)) sessions.delete(token);
+    }
+  }
+
+  db.settings.seoPages = pages.filter((page: any) => page.parentSeoPageId !== posPage.id).concat(normalizedChildren);
+  return null;
 }
 
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -1855,12 +2000,16 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
   if (!session) return res.status(401).json({ error: 'Sesi admin tidak valid atau sudah berakhir' });
 
   const host = normalizeAdminHost(req.hostname);
-  if (session.role === 'Super Admin' && !isSuperAdminAllowedHost(host)) {
+  if (isGlobalSuperAdmin(session) && !isSuperAdminAllowedHost(host)) {
     return res.status(403).json({ error: 'Super Admin hanya dapat masuk dari domain utama yang diizinkan.' });
   }
 
-  if (session.role !== 'Super Admin' && !isAdminAuthorizedForHost(session, host, readDb())) {
+  if (!isAdminAuthorizedForHost(session, host, readDb())) {
     return res.status(403).json({ error: 'Akses admin tidak diizinkan untuk domain ini.' });
+  }
+  const routePath = `${req.baseUrl || ''}${req.path}`;
+  if (!isAdminRouteAllowed(session, req.method, routePath)) {
+    return res.status(403).json({ error: 'Menu atau tindakan ini tidak tersedia untuk role admin Anda.' });
   }
 
   (req as any).adminSession = session;
@@ -1871,17 +2020,17 @@ function getCatalogAccessState(req: express.Request) {
   const session = getSession(req);
   const host = normalizeAnalyticsHost(req.hostname);
   const isMainCatalogHost = host === 'kreditmotorhonda.tech';
-  const isApprovedSuperAdminHost = Boolean(session?.role === 'Super Admin' && isSuperAdminAllowedHost(host));
+  const isApprovedSuperAdminHost = Boolean(isGlobalSuperAdmin(session) && isSuperAdminAllowedHost(host));
   const isLocalCatalogHost = host === 'localhost' || host === '127.0.0.1';
-  const canManageCatalog = Boolean(session) && (isMainCatalogHost || isApprovedSuperAdminHost || (session?.role === 'Super Admin' && isLocalCatalogHost));
+  const canManageCatalog = Boolean(session) && isGlobalSuperAdmin(session) && (isMainCatalogHost || isApprovedSuperAdminHost || isLocalCatalogHost);
 
   return {
     session,
     host,
     isMainCatalogHost,
-    isSuperAdmin: session?.role === 'Super Admin',
+    isSuperAdmin: isGlobalSuperAdmin(session),
     canManageCatalog,
-    owner: isMainCatalogHost || isApprovedSuperAdminHost || (session?.role === 'Super Admin' && isLocalCatalogHost),
+    owner: isGlobalSuperAdmin(session) && (isMainCatalogHost || isApprovedSuperAdminHost || isLocalCatalogHost),
     adminUrl: 'https://kreditmotorhonda.tech/admin',
   };
 }
@@ -1900,11 +2049,26 @@ function requireCatalogWriteAccess(req: express.Request, res: express.Response, 
 function requireSalesCounterAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Sesi admin tidak valid atau sudah berakhir' });
-  if (session.role !== 'Super Admin' || !getSalesCounterRootDomain(req.hostname)) {
+  const db = readDb();
+  const rootDomain = getSalesCounterRootDomain(req.hostname);
+  if (isGlobalSuperAdmin(session) && rootDomain) {
+    (req as any).salesCounterScope = { domainSuffix: rootDomain, parentSeoPageId: null };
+    (req as any).adminSession = session;
+    return next();
+  }
+  const parentPage = (Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [])
+    .find((page: any) => page.id === session.assignedSeoPageId
+      && page.siteType === 'pos'
+      && (page.adminUserId === session.id || (page.posAdminUserIds || []).includes(session.id)));
+  const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
+  if (isPosSuperAdmin(session) && parentPage && hostPage?.id === parentPage.id) {
+    (req as any).salesCounterScope = { domainSuffix: getSeoPageDomainSuffix(parentPage), parentSeoPageId: parentPage.id };
+    (req as any).adminSession = session;
+    return next();
+  }
+  {
     return res.status(403).json({ error: 'Website Sales Counter hanya dapat dibuat oleh Super Admin di domain utama yang didukung.' });
   }
-  (req as any).adminSession = session;
-  next();
 }
 
 async function startServer() {
@@ -2048,13 +2212,15 @@ async function startServer() {
     if (hostPost && req.method !== 'GET' && !isPublicWrite) {
       const session = getSession(req);
       if (!session) return res.status(401).json({ error: 'Sesi admin tidak valid atau sudah berakhir' });
-      if (session.role !== 'Super Admin' && session.id !== hostPost.adminUserId) {
+      if (!isAdminAuthorizedForHost(session, req.hostname, readDb())) {
         return res.status(403).json({ error: 'Akun ini tidak ditugaskan ke post subdomain tersebut.' });
       }
-      const allowedPostWrite = req.method === 'PUT' && req.path === '/settings'
-        || req.method === 'POST' && (req.path === '/admin/logout' || req.path === '/upload')
-        || ['POST', 'PUT', 'DELETE'].includes(req.method) && (/^\/promos(?:\/[^/]+)?$/.test(req.path) || /^\/articles(?:\/[^/]+)?$/.test(req.path));
-      if (!allowedPostWrite) return res.status(403).json({ error: 'Admin post hanya dapat mengubah promo dan pengaturan situs post ini.' });
+      if (!isAdminRouteAllowed(session, req.method, fullPath)) {
+        return res.status(403).json({ error: 'Menu atau tindakan ini tidak tersedia untuk role admin Anda.' });
+      }
+      if (!isAdminRouteAllowed(session, req.method, fullPath)) {
+        return res.status(403).json({ error: 'Menu atau tindakan ini tidak tersedia untuk role admin Anda.' });
+      }
       (req as any).adminSession = session;
       return next();
     }
@@ -2135,9 +2301,22 @@ async function startServer() {
     const db = readCatalogDb();
     const settings = db.settings || {};
     const page = getSeoPageForHost(settings, req.hostname);
-    if (page) return res.json(publicSettings(getSettingsForSeoPage(settings, page)));
     const session = getSession(req);
-    if (session?.role === 'Super Admin') return res.json(settings);
+    if (isGlobalSuperAdmin(session)) return res.json(settings);
+    if (isPosSuperAdmin(session)) {
+      if (!isAdminAuthorizedForHost(session, req.hostname, db)) {
+        return res.status(403).json({ error: 'Akses POS tidak diizinkan untuk domain ini.' });
+      }
+      const pages = Array.isArray(settings.seoPages) ? settings.seoPages : [];
+      const posPage = pages.find((item: any) => item.id === session.assignedSeoPageId && item.siteType === 'pos');
+      if (!posPage) return res.status(403).json({ error: 'POS untuk akun ini tidak ditemukan.' });
+      const activePage = page?.parentSeoPageId === posPage.id ? page : posPage;
+      return res.json({
+        ...getSettingsForSeoPage(settings, activePage),
+        seoPages: pages.filter((item: any) => item.id === posPage.id || item.parentSeoPageId === posPage.id),
+      });
+    }
+    if (page) return res.json(publicSettings(getSettingsForSeoPage(settings, page)));
     return res.json(publicSettings(settings));
   });
 
@@ -2191,28 +2370,52 @@ async function startServer() {
   app.put('/api/settings', (req, res) => {
     const db = readDb();
     const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
+    const session = (req as any).adminSession || getSession(req);
+    if (!session || !isAdminAuthorizedForHost(session, req.hostname, db)) {
+      return res.status(403).json({ error: 'Akses pengaturan tidak diizinkan untuk domain ini.' });
+    }
+    const isGlobalAdmin = isGlobalSuperAdmin(session);
+    const isPosAdmin = isPosSuperAdmin(session);
     const settingsUpdates = { ...(req.body || {}) };
-    if (hostPage) {
-      const session = (req as any).adminSession || getSession(req);
-      if (!session || (session.role !== 'Super Admin' && session.id !== hostPage.adminUserId)) {
-        return res.status(403).json({ error: 'Akun ini tidak ditugaskan ke post subdomain tersebut.' });
+    let assignedPos: any;
+    if (isPosAdmin) {
+      assignedPos = (db.settings?.seoPages || []).find((item: any) => item.id === session.assignedSeoPageId
+        && item.siteType === 'pos'
+        && (item.adminUserId === session.id || (item.posAdminUserIds || []).includes(session.id)));
+      if (!assignedPos) return res.status(403).json({ error: 'POS untuk akun ini tidak ditemukan.' });
+    }
+    if (!isGlobalAdmin) {
+      const editableFields = new Set([
+        'name', 'tagline', 'phone', 'address', 'email', 'workingHours', 'logo', 'heroImage', 'heroImages',
+        'heroTitle', 'heroMainTitle', 'heroTitleHighlight', 'heroSubtitle', 'heroBadge', 'heroCaption', 'footerText',
+        'websiteTemplate', 'catalogAnimation', 'catalogAnimationSpeed', 'customization', 'seoCanonicalUrl',
+        ...(isPosAdmin ? ['seoTitle', 'seoDescription', 'seoKeywords', 'seoRobots'] : []),
+      ]);
+      for (const key of Object.keys(settingsUpdates)) {
+        if (!editableFields.has(key) && !(isPosAdmin && key === 'seoPages' && hostPage?.id === assignedPos.id)) {
+          delete settingsUpdates[key];
+        }
       }
-      if (session.role !== 'Super Admin') {
+      if (Object.keys(settingsUpdates).length === 0) {
+        return res.status(403).json({ error: 'Tidak ada field pengaturan yang diizinkan untuk role ini.' });
+      }
+      settingsUpdates.seoCanonicalUrl = `https://${normalizeAdminHost(req.hostname)}/`;
+    }
+    if (hostPage) {
+      if (!isGlobalAdmin && !isPosAdmin) {
         delete settingsUpdates.seoTitle;
         delete settingsUpdates.seoDescription;
         delete settingsUpdates.seoKeywords;
         delete settingsUpdates.seoRobots;
       }
     }
-    if (!hostPage && Object.prototype.hasOwnProperty.call(settingsUpdates, 'seoPages')) {
-      const session = (req as any).adminSession || getSession(req);
-      if (session?.role !== 'Super Admin') {
-        delete settingsUpdates.seoPages;
-        delete settingsUpdates.ownerDashboard;
-        if (Object.keys(settingsUpdates).length === 0) {
-          return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengelola post subdomain.' });
-        }
+    if (isPosAdmin && Object.prototype.hasOwnProperty.call(settingsUpdates, 'seoPages')) {
+      if (!hostPage || hostPage.id !== assignedPos.id) {
+        return res.status(403).json({ error: 'POS hanya dapat mengelola post melalui domain POS induknya.' });
       }
+      const updateError = updatePosChildSeoPages(db, assignedPos, session, settingsUpdates.seoPages);
+      if (updateError) return res.status(400).json({ error: updateError });
+      delete settingsUpdates.seoPages;
     }
     let hasExternalImage = false;
     mapImageReferences(settingsUpdates, (url) => {
@@ -2566,7 +2769,7 @@ async function startServer() {
 
   app.get('/api/admin/global-promos', requireAdmin, (req, res) => {
     const session = (req as any).adminSession;
-    if (session.role !== 'Super Admin') {
+    if (!isGlobalSuperAdmin(session)) {
       return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengatur publikasi promo global.' });
     }
 
@@ -2586,7 +2789,7 @@ async function startServer() {
 
   app.put('/api/promos/global/:id/domains', requireAdmin, (req, res) => {
     const session = (req as any).adminSession;
-    if (session.role !== 'Super Admin') {
+    if (!isGlobalSuperAdmin(session)) {
       return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengubah domain promo global.' });
     }
 
@@ -3017,7 +3220,7 @@ async function startServer() {
 
   app.get('/api/admin/owner-dashboard', requireAdmin, (req, res) => {
     const session = (req as any).adminSession;
-    if (session.role !== 'Super Admin') {
+    if (!isGlobalSuperAdmin(session)) {
       return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengatur dashboard owner.' });
     }
     const db = readDb();
@@ -3031,7 +3234,7 @@ async function startServer() {
 
   app.put('/api/admin/owner-dashboard', requireAdmin, (req, res) => {
     const session = (req as any).adminSession;
-    if (session.role !== 'Super Admin') {
+    if (!isGlobalSuperAdmin(session)) {
       return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengatur dashboard owner.' });
     }
 
@@ -3113,7 +3316,7 @@ async function startServer() {
         .find((page: any) => `${String(page.subdomain || '').toLocaleLowerCase('en-US')}.kreditmotorhonda.tech` === host);
       const hasSeoPost = assignedSeoPage && getSeoLandingPosts(assignedSeoPage).length > 0;
       const admins = (hasSeoPost ? (Array.isArray(sourceDb.adminUsers) ? sourceDb.adminUsers : []) : [])
-        .filter((user: any) => user.role !== 'Super Admin' && user.id === assignedSeoPage.adminUserId)
+        .filter((user: any) => normalizeAdminRole(user.role) !== ADMIN_ROLE_GLOBAL && user.id === assignedSeoPage.adminUserId)
         .map((user: any) => ({ username: String(user.username || ''), role: String(user.role || 'Admin') }))
         .filter((user: any) => user.username);
       return { host, dataAvailable: databaseContents.has(sourceFile), admins };
@@ -3448,11 +3651,21 @@ async function startServer() {
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const session = { id: user.id, username: user.username, role: user.role, createdAt: new Date().toISOString() };
+    const assignedSeoPage = (Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [])
+      .find((page: any) => page.adminUserId === user.id || (page.posAdminUserIds || []).includes(user.id));
+    const role = normalizeAdminRole(user.role);
+    const session = {
+      id: user.id,
+      username: user.username,
+      role,
+      createdAt: new Date().toISOString(),
+      ...(user.assignedSeoPageId || assignedSeoPage?.id ? { assignedSeoPageId: user.assignedSeoPageId || assignedSeoPage.id } : {}),
+      ...(user.assignedHost ? { assignedHost: user.assignedHost } : assignedSeoPage ? { assignedHost: `${assignedSeoPage.subdomain}.${getSeoPageDomainSuffix(assignedSeoPage)}` } : {}),
+    };
     sessions.set(token, session);
     appendAudit(db, { actor: user.username, action: 'LOGIN', resource: 'admin-session', details: 'Login admin berhasil' });
     writeDb(db);
-    return res.json({ success: true, token, user: { username: user.username, role: user.role, id: user.id } });
+    return res.json({ success: true, token, user: { username: user.username, role, id: user.id } });
   });
 
   app.post('/api/admin/logout', requireAdmin, (req, res) => {
@@ -3467,13 +3680,15 @@ async function startServer() {
 
   app.post('/api/admin/seo-pages/:id/provision-ssl', requireAdmin, async (req, res) => {
     const session = (req as any).adminSession;
-    if (session.role !== 'Super Admin') {
-      return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengaktifkan SSL post.' });
-    }
-
     const db = readDb();
     const page = (Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : []).find((item: any) => item.id === req.params.id);
     if (!page) return res.status(404).json({ error: 'Post subdomain tidak ditemukan.' });
+    const assignedPos = isPosSuperAdmin(session)
+      ? db.settings.seoPages.find((item: any) => item.id === session.assignedSeoPageId && item.siteType === 'pos')
+      : null;
+    if (!isGlobalSuperAdmin(session) && !(assignedPos && page.parentSeoPageId === assignedPos.id)) {
+      return res.status(403).json({ error: 'Role ini tidak dapat mengaktifkan SSL pada subdomain tersebut.' });
+    }
 
     page.sslStatus = 'provisioning';
     page.sslError = undefined;
@@ -3507,21 +3722,34 @@ async function startServer() {
 
   app.get('/api/admin/users', requireAdmin, (req, res) => {
     const db = readDb();
-    res.json(ensureAdminUsers(db).map((user: any) => publicAdminUser(user, db)));
+    const session = (req as any).adminSession;
+    let users = ensureAdminUsers(db);
+    if (isPosSuperAdmin(session)) {
+      const childUserIds = new Set((db.settings?.seoPages || [])
+        .filter((page: any) => page.parentSeoPageId === session.assignedSeoPageId)
+        .flatMap((page: any) => [page.adminUserId, ...(page.posAdminUserIds || [])]));
+      users = users.filter((user: any) => user.id === session.id || childUserIds.has(user.id));
+    } else if (!isGlobalSuperAdmin(session)) {
+      users = users.filter((user: any) => user.id === session.id);
+    }
+    res.json(users.map((user: any) => publicAdminUser(user, db)));
   });
 
   app.get('/api/admin/sales-counters', requireSalesCounterAdmin, (req, res) => {
     const db = readDb();
-    const domainSuffix = getSalesCounterRootDomain(req.hostname)!;
+    const { domainSuffix, parentSeoPageId } = (req as any).salesCounterScope;
     const pages = Array.isArray(db.settings?.seoPages)
-      ? db.settings.seoPages.filter((page: any) => page.siteType === 'sales-counter'
-        && getSeoPageDomainSuffix(page) === domainSuffix)
+      ? db.settings.seoPages.filter((page: any) => ['pos', 'sales-counter'].includes(page.siteType || 'sales-counter')
+        && getSeoPageDomainSuffix(page) === domainSuffix
+        && (page.parentSeoPageId || null) === parentSeoPageId)
       : [];
     const users = ensureAdminUsers(db);
     res.json(pages.map((page: any) => {
       const user = users.find((item: any) => item.id === page.adminUserId);
       return {
         id: page.id,
+        siteType: page.siteType || 'sales-counter',
+        parentSeoPageId: page.parentSeoPageId || null,
         subdomain: page.subdomain,
         domainSuffix,
         name: page.siteSettings?.name || page.title || page.subdomain,
@@ -3541,11 +3769,12 @@ async function startServer() {
 
   app.put('/api/admin/sales-counters/:id/seo', requireSalesCounterAdmin, (req, res) => {
     const db = readDb();
-    const domainSuffix = getSalesCounterRootDomain(req.hostname)!;
+    const { domainSuffix, parentSeoPageId } = (req as any).salesCounterScope;
     const page = (Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [])
       .find((item: any) => item.id === req.params.id
-        && item.siteType === 'sales-counter'
-        && getSeoPageDomainSuffix(item) === domainSuffix);
+        && ['pos', 'sales-counter'].includes(item.siteType || 'sales-counter')
+        && getSeoPageDomainSuffix(item) === domainSuffix
+        && (item.parentSeoPageId || null) === parentSeoPageId);
     if (!page) return res.status(404).json({ error: 'Sales Counter tidak ditemukan pada domain ini.' });
 
     page.seoTitle = String(req.body?.seoTitle || '').trim().slice(0, 70);
@@ -3577,7 +3806,8 @@ async function startServer() {
     db.settings = db.settings || {};
     const users = ensureAdminUsers(db);
     const sourceSettings = db.settings;
-    const domainSuffix = getSalesCounterRootDomain(req.hostname)!;
+    const { domainSuffix, parentSeoPageId } = (req as any).salesCounterScope;
+    const siteType = parentSeoPageId ? 'sales-counter' : req.body?.siteType === 'pos' ? 'pos' : 'sales-counter';
     const name = String(req.body?.name || '').trim();
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '');
@@ -3609,11 +3839,12 @@ async function startServer() {
     const normalizedPhone = phone.startsWith('0') ? `62${phone.slice(1)}` : phone;
     const page: any = {
       id: pageId,
-      siteType: 'sales-counter',
+      siteType,
+      ...(parentSeoPageId ? { parentSeoPageId } : {}),
       subdomain,
       domainSuffix,
       adminUserId,
-      title: `${name} | Sales Counter Honda`,
+      title: `${name} | ${siteType === 'pos' ? 'POS' : 'Sales Counter'} Honda`,
       content: '',
       seoTitle: seoTitle || `${name} | Sales Counter Honda Bandung`.slice(0, 70),
       seoDescription: seoDescription || `Hubungi ${name}, Sales Counter Honda Bandung. Konsultasi motor, harga, promo, dan simulasi kredit Honda melalui WhatsApp.`.slice(0, 160),
@@ -3644,7 +3875,9 @@ async function startServer() {
       id: adminUserId,
       username,
       passwordHash: hashPassword(password),
-      role: 'Staff Admin',
+      role: siteType === 'pos' ? ADMIN_ROLE_POS : ADMIN_ROLE_LIMITED,
+      assignedSeoPageId: pageId,
+      assignedHost: `${subdomain}.${domainSuffix}`,
       created_at: now,
     };
 
@@ -3673,6 +3906,8 @@ async function startServer() {
 
     return res.status(201).json({
       id: page.id,
+      siteType: page.siteType,
+      parentSeoPageId: page.parentSeoPageId || null,
       subdomain: page.subdomain,
       domainSuffix,
       name,
@@ -3693,21 +3928,37 @@ async function startServer() {
     const session = (req as any).adminSession;
     const db = readDb();
     const pages = Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [];
-    const page = pages.find((item: any) => item.id === req.params.id && item.siteType === 'sales-counter');
-    if (!page || getSeoPageDomainSuffix(page) !== getSalesCounterRootDomain(req.hostname)) {
+    const { domainSuffix, parentSeoPageId } = (req as any).salesCounterScope;
+    const page = pages.find((item: any) => item.id === req.params.id
+      && ['pos', 'sales-counter'].includes(item.siteType || 'sales-counter')
+      && getSeoPageDomainSuffix(item) === domainSuffix
+      && (item.parentSeoPageId || null) === parentSeoPageId);
+    if (!page) {
       return res.status(404).json({ error: 'Sales Counter tidak ditemukan pada domain ini.' });
     }
 
-    db.settings.seoPages = pages.filter((item: any) => item.id !== page.id);
-    db.adminUsers = (Array.isArray(db.adminUsers) ? db.adminUsers : []).filter((user: any) => user.id !== page.adminUserId);
+    const deletedPageIds = new Set([page.id]);
+    let foundChild = true;
+    while (foundChild) {
+      foundChild = false;
+      for (const candidate of pages) {
+        if (candidate.parentSeoPageId && deletedPageIds.has(candidate.parentSeoPageId) && !deletedPageIds.has(candidate.id)) {
+          deletedPageIds.add(candidate.id);
+          foundChild = true;
+        }
+      }
+    }
+    const deletedAdminIds = new Set(pages.filter((item: any) => deletedPageIds.has(item.id)).map((item: any) => item.adminUserId));
+    db.settings.seoPages = pages.filter((item: any) => !deletedPageIds.has(item.id));
+    db.adminUsers = (Array.isArray(db.adminUsers) ? db.adminUsers : []).filter((user: any) => !deletedAdminIds.has(user.id));
     for (const [token, activeSession] of sessions) {
-      if (activeSession.id === page.adminUserId) sessions.delete(token);
+      if (deletedAdminIds.has(activeSession.id)) sessions.delete(token);
     }
     appendAudit(db, {
       actor: session.username,
       action: 'DELETE_SALES_COUNTER',
       resource: page.id,
-      details: `Menghapus ${page.subdomain}.${page.domainSuffix} dan akun admin terkait`,
+      details: `Menghapus ${page.subdomain}.${page.domainSuffix}, seluruh turunannya, dan akun admin terkait`,
     });
     if (!writeDb(db)) return res.status(500).json({ error: 'Sales Counter gagal dihapus.' });
     return res.json({ success: true });
@@ -3715,7 +3966,7 @@ async function startServer() {
 
   app.post('/api/admin/users', requireAdmin, (req, res) => {
     const session = (req as any).adminSession;
-    if (session.role !== 'Super Admin') return res.status(403).json({ error: 'Hanya Super Admin yang dapat membuat admin' });
+    if (!isGlobalSuperAdmin(session)) return res.status(403).json({ error: 'Hanya superadmin domain utama yang dapat membuat admin.' });
     const db = readDb();
     const users = ensureAdminUsers(db);
     const username = String(req.body?.username || '').trim();
@@ -3723,13 +3974,42 @@ async function startServer() {
     const assignedSeoPageId = req.body && Object.prototype.hasOwnProperty.call(req.body, 'assignedSeoPageId')
       ? String(req.body.assignedSeoPageId || '').trim()
       : '';
+    const role = normalizeAdminRole(req.body?.role);
+    const assignedPage = assignedSeoPageId
+      ? (db.settings?.seoPages || []).find((page: any) => page.id === assignedSeoPageId)
+      : undefined;
     if (!username || password.length < 8) return res.status(400).json({ error: 'Username wajib diisi dan password minimal 8 karakter' });
+    if (role === ADMIN_ROLE_POS && (!assignedPage || assignedPage.siteType !== 'pos')) {
+      return res.status(400).json({ error: 'Superadmin POS wajib ditugaskan ke website POS.' });
+    }
+    if (role === ADMIN_ROLE_LIMITED && assignedPage?.siteType === 'pos') {
+      return res.status(400).json({ error: 'Role admin biasa tidak dapat ditugaskan sebagai pengelola POS.' });
+    }
+    if (role === ADMIN_ROLE_GLOBAL && assignedSeoPageId) {
+      return res.status(400).json({ error: 'Superadmin global tidak menggunakan assignment website.' });
+    }
     if (users.some((item: any) => item.username.toLowerCase() === username.toLowerCase())) {
       return res.status(409).json({ error: 'Username sudah digunakan' });
     }
-    const newUser = { id: `admin-${Date.now()}`, username, passwordHash: hashPassword(password), role: req.body?.role === 'Super Admin' ? 'Super Admin' : 'Staff Admin', created_at: new Date().toISOString() };
+    const newUser = {
+      id: `admin-${Date.now()}`,
+      username,
+      passwordHash: hashPassword(password),
+      role,
+      ...(role === ADMIN_ROLE_GLOBAL ? {} : {
+        assignedSeoPageId: assignedPage?.id,
+        assignedHost: assignedPage
+          ? `${assignedPage.subdomain}.${getSeoPageDomainSuffix(assignedPage)}`
+          : normalizeAdminHost(req.hostname),
+      }),
+      created_at: new Date().toISOString(),
+    };
     db.adminUsers.push(newUser);
-    syncAdminPostAssignment(db, newUser.id, assignedSeoPageId || null);
+    if (role === ADMIN_ROLE_POS) {
+      assignedPage.posAdminUserIds = [...new Set([...(assignedPage.posAdminUserIds || []), newUser.id])];
+    } else if (role === ADMIN_ROLE_LIMITED && assignedPage) {
+      syncAdminPostAssignment(db, newUser.id, assignedPage.id);
+    }
     appendAudit(db, { actor: session.username, action: 'CREATE_ADMIN', resource: newUser.id, details: `Membuat admin ${username}` });
     writeDb(db);
     res.status(201).json(publicAdminUser(newUser, db));
@@ -3741,14 +4021,14 @@ async function startServer() {
     const users = ensureAdminUsers(db);
     const index = users.findIndex((item: any) => item.id === req.params.id);
     if (index === -1) return res.status(404).json({ error: 'Admin tidak ditemukan' });
-    if (session.role !== 'Super Admin' && session.id !== req.params.id) return res.status(403).json({ error: 'Tidak memiliki izin mengubah admin lain' });
+    if (!isGlobalSuperAdmin(session) && session.id !== req.params.id) return res.status(403).json({ error: 'Tidak memiliki izin mengubah admin lain' });
     const current = users[index];
     const username = String(req.body?.username ?? current.username).trim();
     const password = req.body?.password ? String(req.body.password) : '';
     const hasAssignmentUpdate = Object.prototype.hasOwnProperty.call(req.body || {}, 'assignedSeoPageId');
     const assignedSeoPageId = hasAssignmentUpdate ? String(req.body.assignedSeoPageId || '').trim() : undefined;
     if (!username || (password && password.length < 8)) return res.status(400).json({ error: 'Username wajib diisi dan password minimal 8 karakter' });
-    users[index] = { ...current, username, ...(password ? { passwordHash: hashPassword(password) } : {}), ...(session.role === 'Super Admin' && req.body?.role ? { role: req.body.role } : {}), updated_at: new Date().toISOString() };
+    users[index] = { ...current, username, ...(password ? { passwordHash: hashPassword(password) } : {}), ...(isGlobalSuperAdmin(session) && req.body?.role ? { role: normalizeAdminRole(req.body.role) } : {}), updated_at: new Date().toISOString() };
     if (hasAssignmentUpdate) syncAdminPostAssignment(db, users[index].id, assignedSeoPageId || null);
     appendAudit(db, { actor: session.username, action: 'UPDATE_ADMIN', resource: current.id, details: `Mengubah akun ${current.username}` });
     writeDb(db);
@@ -3793,7 +4073,7 @@ async function startServer() {
 
   app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
     const session = (req as any).adminSession;
-    if (session.role !== 'Super Admin') return res.status(403).json({ error: 'Hanya Super Admin yang dapat menghapus admin' });
+    if (!isGlobalSuperAdmin(session)) return res.status(403).json({ error: 'Hanya superadmin domain utama yang dapat menghapus admin.' });
     const db = readDb();
     const users = ensureAdminUsers(db);
     if (users.length <= 1) return res.status(400).json({ error: 'Minimal harus ada satu admin' });
@@ -3808,7 +4088,21 @@ async function startServer() {
 
   app.get('/api/admin/audit', requireAdmin, (req, res) => {
     const db = readDb();
-    res.json(db.auditLogs || []);
+    const session = (req as any).adminSession;
+    let logs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
+    if (!isGlobalSuperAdmin(session)) {
+      let usernames = new Set([session.username]);
+      if (isPosSuperAdmin(session)) {
+        const users = ensureAdminUsers(db);
+        const childUserIds = new Set((db.settings?.seoPages || [])
+          .filter((page: any) => page.parentSeoPageId === session.assignedSeoPageId)
+          .flatMap((page: any) => [page.adminUserId, ...(page.posAdminUserIds || [])]));
+        usernames = new Set(users.filter((user: any) => user.id === session.id || childUserIds.has(user.id))
+          .map((user: any) => String(user.username || '')));
+      }
+      logs = logs.filter((log: any) => usernames.has(String(log.actor || '')));
+    }
+    res.json(logs);
   });
 
   app.get('/api/admin/report', requireAdmin, (req, res) => {
