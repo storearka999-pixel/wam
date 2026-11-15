@@ -69,6 +69,7 @@ interface AdminPanelProps {
 
 type SeoPostEditor = SeoLandingPost & {
   subdomain: string;
+  domainSuffix?: string;
   slugManuallyEdited?: boolean;
   seoTitle?: string;
   seoDescription?: string;
@@ -197,7 +198,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const [promos, setPromos] = useState<Promo[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [settings, setSettings] = useState<DealerSettings | null>(null);
-<<<<<<< HEAD
   const isSuperAdmin = ['superadmin', 'Super Admin'].includes(adminSession?.role || '');
   const isPosSuperAdmin = ['superadmin pos', 'Super Admin POS'].includes(adminSession?.role || '');
   const isSeoPostAdmin = isPosSuperAdmin;
@@ -206,14 +206,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     : isPosSuperAdmin
       ? new Set(['articles', 'testimonials', 'settings', 'theme', 'seo-subdomains', 'seo-posts', 'security', 'sales-counter'])
       : new Set(['articles', 'testimonials', 'settings', 'theme', 'security']);
-=======
-  const isSuperAdmin = adminSession?.role === 'Super Admin';
-  // Non-super-admin accounts are scoped to their assigned domain/post.
-  // Keep their CMS surface intentionally small: summary, leads, promos,
-  // articles, and dealer settings only.
-  const isSeoPostAdmin = adminSession?.role !== 'Super Admin';
-  const domainAdminTabs = new Set(['dashboard', 'leads', 'promos', 'articles', 'settings', 'theme']);
->>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
   const [seoSubdomainEditor, setSeoSubdomainEditor] = useState<SeoLandingPage | null>(null);
   const [seoPageEditor, setSeoPageEditor] = useState<SeoPostEditor | null>(null);
   const [isSavingSeoPage, setIsSavingSeoPage] = useState(false);
@@ -1713,7 +1705,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     const now = new Date().toISOString();
     const page: SeoLandingPage = {
       ...seoSubdomainEditor,
-      domainSuffix: seoSubdomainEditor.domainSuffix || getAdminDomainSuffix(),
       id: existingPage?.id || `seo-page-${Date.now()}`,
       subdomain,
       domainSuffix: existingPage?.domainSuffix || domainSuffix,
@@ -2133,17 +2124,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
               { id: 'export', label: 'Download & Backup Data', icon: Download },
             ].filter((tab) => {
               if (tab.id === 'sales-counter') return canManageSalesCounters;
-<<<<<<< HEAD
               if (tab.id === 'motors') return isSuperAdmin;
               if (tab.id === 'credit') return isSuperAdmin && canManageCatalog;
               return isSuperAdmin || Boolean(allowedAdminTabs?.has(tab.id));
-=======
-              if (tab.id === 'motors') return true;
-              if (tab.id === 'credit') return canManageCatalog;
-              if (isSuperAdmin) return true;
-              if (isSeoPostAdmin) return domainAdminTabs.has(tab.id);
-              return true;
->>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
             }).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -4074,13 +4057,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           onChange={(event) => setSecurityForm({ ...securityForm, assignedSeoPageId: event.target.value })}
                           className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
                         >
-<<<<<<< HEAD
                           <option value="">{securityForm.role === 'superadmin' ? 'Semua domain utama' : 'Pilih website'}</option>
                           {(settings?.seoPages || []).filter((page) => securityForm.role !== 'superadmin pos' || page.siteType === 'pos').map((page) => (
-=======
-                          <option value="">Tanpa admin pos</option>
-                            {scopedSeoPages.map((page) => (
->>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
                             <option key={page.id} value={page.id}>{page.subdomain}.{page.domainSuffix || 'kreditmotorhonda.tech'}</option>
                           ))}
                         </select>

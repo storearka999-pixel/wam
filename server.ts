@@ -1892,7 +1892,6 @@ function isAdminAuthorizedForHost(session: any, hostname: string, db: any = read
     && normalizeAdminHost(`${page.subdomain}.${getSeoPageDomainSuffix(page)}`) === host);
 }
 
-<<<<<<< HEAD
 function isAdminRouteAllowed(session: any, method: string, pathname: string) {
   const role = normalizeAdminRole(session?.role);
   if (role === ADMIN_ROLE_GLOBAL) return true;
@@ -2009,15 +2008,8 @@ function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPa
 
   db.settings.seoPages = pages.filter((page: any) => page.parentSeoPageId !== posPage.id).concat(normalizedChildren);
   return null;
-=======
-  const assignedHost = String(assignedSeoPage.subdomain || '').trim().toLowerCase();
-  const assignedDomainSuffix = getSeoPageDomainSuffix(assignedSeoPage);
-  if (!assignedHost) return false;
-
-  const permittedHosts = new Set([`${assignedHost}.${assignedDomainSuffix}`]);
-  return permittedHosts.has(host);
->>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
 }
+
 
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const session = getSession(req);
@@ -2348,7 +2340,7 @@ async function startServer() {
         return res.status(403).json({ error: 'Akses POS tidak diizinkan untuk domain ini.' });
       }
       const pages = Array.isArray(settings.seoPages) ? settings.seoPages : [];
-      const posPage = pages.find((item: any) => item.id === session.assignedSeoPageId && item.siteType === 'pos');
+      const posPage = pages.find((item: any) => item.id === session?.assignedSeoPageId && item.siteType === 'pos');
       if (!posPage) return res.status(403).json({ error: 'POS untuk akun ini tidak ditemukan.' });
       const activePage = page?.parentSeoPageId === posPage.id ? page : posPage;
       return res.json({
@@ -2453,27 +2445,9 @@ async function startServer() {
       if (!hostPage || hostPage.id !== assignedPos.id) {
         return res.status(403).json({ error: 'POS hanya dapat mengelola post melalui domain POS induknya.' });
       }
-<<<<<<< HEAD
       const updateError = updatePosChildSeoPages(db, assignedPos, session, settingsUpdates.seoPages);
       if (updateError) return res.status(400).json({ error: updateError });
       delete settingsUpdates.seoPages;
-=======
-      const requestDomain = getSalesCounterRootDomain(req.hostname);
-      if (requestDomain && Array.isArray(settingsUpdates.seoPages)) {
-        const existingPages = Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [];
-        const submittedPages = settingsUpdates.seoPages.map((page: any) => ({
-          ...page,
-          domainSuffix: requestDomain,
-        }));
-        // A domain admin may replace only its own SEO pages. Keep pages owned
-        // by the other root domains untouched, even when the browser submits
-        // a filtered list from the current domain panel.
-        settingsUpdates.seoPages = [
-          ...existingPages.filter((page: any) => getSeoPageDomainSuffix(page) !== requestDomain),
-          ...submittedPages,
-        ];
-      }
->>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
     }
     let hasExternalImage = false;
     mapImageReferences(settingsUpdates, (url) => {
@@ -4091,7 +4065,6 @@ async function startServer() {
     if (users.some((item: any) => item.username.toLowerCase() === username.toLowerCase())) {
       return res.status(409).json({ error: 'Username sudah digunakan' });
     }
-<<<<<<< HEAD
     const newUser = {
       id: `admin-${Date.now()}`,
       username,
@@ -4105,17 +4078,6 @@ async function startServer() {
       }),
       created_at: new Date().toISOString(),
     };
-=======
-    const role = req.body?.role === 'Super Admin' ? 'Super Admin' : 'Staff Admin';
-    if (role === 'Staff Admin' && !assignedSeoPageId) {
-      return res.status(400).json({ error: 'Staff Admin wajib ditugaskan ke satu post/domain.' });
-    }
-    const assignedPage = assignedSeoPageId
-      ? (Array.isArray(db.settings?.seoPages) ? db.settings.seoPages.find((page: any) => page.id === assignedSeoPageId) : undefined)
-      : undefined;
-    if (assignedSeoPageId && !assignedPage) return res.status(404).json({ error: 'Post/domain admin tidak ditemukan.' });
-    const newUser = { id: `admin-${Date.now()}`, username, passwordHash: hashPassword(password), role, created_at: new Date().toISOString() };
->>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
     db.adminUsers.push(newUser);
     if (role === ADMIN_ROLE_POS) {
       assignedPage.posAdminUserIds = [...new Set([...(assignedPage.posAdminUserIds || []), newUser.id])];
@@ -4140,20 +4102,7 @@ async function startServer() {
     const hasAssignmentUpdate = Object.prototype.hasOwnProperty.call(req.body || {}, 'assignedSeoPageId');
     const assignedSeoPageId = hasAssignmentUpdate ? String(req.body.assignedSeoPageId || '').trim() : undefined;
     if (!username || (password && password.length < 8)) return res.status(400).json({ error: 'Username wajib diisi dan password minimal 8 karakter' });
-<<<<<<< HEAD
     users[index] = { ...current, username, ...(password ? { passwordHash: hashPassword(password) } : {}), ...(isGlobalSuperAdmin(session) && req.body?.role ? { role: normalizeAdminRole(req.body.role) } : {}), updated_at: new Date().toISOString() };
-=======
-    const nextRole = session.role === 'Super Admin' && req.body?.role
-      ? (req.body.role === 'Super Admin' ? 'Super Admin' : 'Staff Admin')
-      : current.role;
-    if (nextRole === 'Staff Admin' && hasAssignmentUpdate && !assignedSeoPageId) {
-      return res.status(400).json({ error: 'Staff Admin wajib ditugaskan ke satu post/domain.' });
-    }
-    if (hasAssignmentUpdate && assignedSeoPageId && !(Array.isArray(db.settings?.seoPages) && db.settings.seoPages.some((page: any) => page.id === assignedSeoPageId))) {
-      return res.status(404).json({ error: 'Post/domain admin tidak ditemukan.' });
-    }
-    users[index] = { ...current, username, role: nextRole, ...(password ? { passwordHash: hashPassword(password) } : {}), updated_at: new Date().toISOString() };
->>>>>>> 5ad023ba617ec28975492ce12a8d91446155d7db
     if (hasAssignmentUpdate) syncAdminPostAssignment(db, users[index].id, assignedSeoPageId || null);
     appendAudit(db, { actor: session.username, action: 'UPDATE_ADMIN', resource: current.id, details: `Mengubah akun ${current.username}` });
     writeDb(db);
