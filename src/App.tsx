@@ -166,6 +166,15 @@ export default function App() {
     }
   }, [currentPath, isAdminRoute]);
 
+  useEffect(() => {
+    if (isAdminRoute) return;
+    const handleSettingsUpdated = (event: StorageEvent) => {
+      if (event.key === 'hwa-settings-updated-at') void loadData();
+    };
+    window.addEventListener('storage', handleSettingsUpdated);
+    return () => window.removeEventListener('storage', handleSettingsUpdated);
+  }, [isAdminRoute]);
+
   // Fetch initial data from dynamic database
   const loadData = async () => {
     try {
@@ -202,6 +211,20 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  // SSR data can be cached or berasal dari database katalog lama. Always
+  // refresh settings from the API so a newly selected website template wins
+  // over the fallback/default template after navigation or deployment.
+  useEffect(() => {
+    if (isAdminRoute) return;
+    let active = true;
+    void api.getSettings().then((settingsData) => {
+      if (active && settingsData?.name) setSettings(settingsData);
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [isAdminRoute]);
 
   useEffect(() => {
     if (isAdminRoute) {
