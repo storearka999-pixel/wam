@@ -23,8 +23,14 @@ import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from '.
 const AdminPanel = lazy(() => import('./components/AdminPanel').then(({ AdminPanel: panel }) => ({ default: panel })));
 
 export default function App() {
-  const isAdminRoute = window.location.pathname === '/admin' || window.location.pathname.endsWith('/admin');
-  const websitePath = isAdminRoute ? window.location.pathname.slice(0, -'/admin'.length) || '/' : '/';
+  const normalizedPathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  const isAdminRoute = ['/admin', '/login', '/masuk'].includes(normalizedPathname)
+    || normalizedPathname.endsWith('/admin')
+    || normalizedPathname.endsWith('/login')
+    || normalizedPathname.endsWith('/masuk');
+  const websitePath = isAdminRoute
+    ? window.location.pathname.replace(/\/(?:admin|login|masuk)\/?$/, '') || '/'
+    : '/';
   const initialSettings = (window as Window & {
     __HWA_INITIAL_SETTINGS__?: Partial<DealerSettings>;
   }).__HWA_INITIAL_SETTINGS__;

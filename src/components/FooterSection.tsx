@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Phone, Mail, Clock, MessageSquare, Bike, ArrowUp } from 'lucide-react';
+import { MapPin, Phone, Mail, Clock, MessageSquare, Bike, ArrowUp, Facebook, Instagram, Linkedin, Youtube } from 'lucide-react';
 import { DealerSettings } from '../types';
 import { createWhatsAppUrl, normalizeWhatsAppNumber } from '../utils/whatsapp';
 
@@ -11,6 +11,13 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address || 'Honda Wijaya Abadi Mulia Motor, Bandung')}`;
   const whatsappUrl = createWhatsAppUrl(settings.phone, 'Halo Honda Wijaya Abadi, saya ingin konsultasi motor Honda.');
+  const socialLinks = [
+    { label: 'Instagram', href: 'https://www.instagram.com/welovehonda_id/', icon: Instagram },
+    { label: 'Facebook', href: 'https://www.facebook.com/welovehonda', icon: Facebook },
+    { label: 'YouTube', href: 'https://www.youtube.com/@welovehondaindonesia', icon: Youtube },
+    { label: 'X', href: 'https://x.com/welovehonda', icon: null },
+    { label: 'LinkedIn', href: 'https://www.linkedin.com/company/pt-astra-honda-motor/', icon: Linkedin },
+  ];
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -38,12 +45,21 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
             <a href="#simulasi">Simulasi Kredit</a>
             <a href="#artikel">Artikel & Tips</a>
             <a href="#kontak">Kontak</a>
+            <a href="/admin">Login Panel Admin</a>
           </div>
           <div>
             <h2>Hubungi Kami</h2>
             <a href={`tel:+${normalizeWhatsAppNumber(settings.phone)}`}><Phone aria-hidden="true" /> {settings.phone}</a>
             <a href={mapsUrl} target="_blank" rel="noopener noreferrer"><MapPin aria-hidden="true" /> {settings.address}</a>
             <span><Clock aria-hidden="true" /> {settings.workingHours}</span>
+            <nav aria-label="Media sosial Honda" className="wijaya-enerjik-footer__socials">
+              {socialLinks.map(({ label, href, icon: Icon }) => (
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer" aria-label={label}>
+                  {Icon ? <Icon aria-hidden="true" /> : <span aria-hidden="true">𝕏</span>}
+                  <span>{label}</span>
+                </a>
+              ))}
+            </nav>
           </div>
         </div>
         <div className="wijaya-enerjik-footer__bottom">
@@ -174,6 +190,14 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
               {settings.footerText ||
                 'Dealer resmi Honda terpercaya yang siap melayani kebutuhan kendaraan Anda dengan profesional dan amanah.'}
             </p>
+            <nav aria-label="Media sosial Honda" className="flex flex-wrap gap-2 pt-1">
+              {socialLinks.map(({ label, href, icon: Icon }) => (
+                <a key={href} href={href} target="_blank" rel="noopener noreferrer" aria-label={label} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-[11px] text-zinc-300 hover:border-red-400 hover:text-white">
+                  {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : <span aria-hidden="true">𝕏</span>}
+                  <span>{label}</span>
+                </a>
+              ))}
+            </nav>
           </div>
 
           <div>
@@ -192,6 +216,7 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
             <ul className="space-y-2">
               <li><span className="text-zinc-500">Authorized Honda Dealer</span></li>
               <li><span className="text-zinc-500">PT Astra Honda Motor Partner</span></li>
+              <li><a href="/admin" className="text-zinc-400 hover:text-red-400 transition-colors">Login Panel Admin</a></li>
             </ul>
           </div>
 

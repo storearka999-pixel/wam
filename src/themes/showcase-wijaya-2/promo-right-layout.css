@@ -184,9 +184,9 @@
   display: contents !important;
 }
 
-.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-title {
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-title {
   grid-column: 1 / -1;
-  grid-row: 1;
+  grid-row: 1 !important;
   margin: 0 0 2px;
   color: #171717;
   font-size: clamp(14px, 1.2vw, 18px);
@@ -194,7 +194,7 @@
   text-align: left;
 }
 
-.website-shell.website-template-showcase-wijaya-2.site-mode-dark main > #promo .promo-title {
+.website-shell.website-template-showcase-wijaya-2.site-mode-dark main > #promo .promo-card .promo-title {
   color: #ffffff;
 }
 
@@ -204,19 +204,19 @@
   align-self: start;
 }
 
-.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-description {
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-description {
   grid-column: 1;
   grid-row: 3;
   align-self: start;
 }
 
-.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-action {
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-action {
   grid-column: 1;
   grid-row: 4;
   align-self: end;
 }
 
-.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-image-carousel {
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-image-carousel {
   grid-column: 2;
   grid-row: 2 / 5;
   align-self: stretch;
@@ -228,9 +228,9 @@
     grid-template-rows: auto auto 1fr auto;
   }
 
-  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-title {
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-title {
     grid-column: 1 / -1;
-    grid-row: 1;
+    grid-row: 1 !important;
     font-size: 16px;
   }
 
@@ -239,17 +239,17 @@
     grid-row: 2;
   }
 
-  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-description {
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-description {
     grid-column: 1;
     grid-row: 3;
   }
 
-  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-action {
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-action {
     grid-column: 1 / -1;
     grid-row: 4;
   }
 
-  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-image-carousel {
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-image-carousel {
     grid-column: 2;
     grid-row: 2 / 4;
   }

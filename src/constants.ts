@@ -14,8 +14,8 @@ export function normalizeFeaturedMotorRotationInterval(value: unknown): number {
 	return Math.min(MAX_FEATURED_MOTOR_ROTATION_INTERVAL, Math.max(MIN_FEATURED_MOTOR_ROTATION_INTERVAL, Math.round(interval)));
 }
 
-export const DEFAULT_SEO_TITLE = 'Dealer Motor Honda Bandung | Harga & Kredit';
-export const DEFAULT_SEO_DESCRIPTION = 'Dealer motor Honda di Bandung: cek katalog terbaru, harga OTR, promo, simulasi kredit, DP dan tenor, serta konsultasi WhatsApp dengan cepat dan transparan.';
+export const DEFAULT_SEO_TITLE = 'Dealer Motor Honda Bandung | Promo, Harga & Kredit';
+export const DEFAULT_SEO_DESCRIPTION = 'Dealer Honda Bandung untuk harga, promo, DP, cicilan, dan simulasi kredit motor Honda. Konsultasi cepat via WhatsApp.';
 export const DEFAULT_SEO_FOCUS_KEYWORD = 'Honda Bandung';
 export const DEFAULT_SEO_KEYWORDS = 'dealer motor Honda Bandung, harga motor Honda Bandung, kredit motor Honda Bandung, simulasi kredit Honda, promo motor Honda Bandung, DP motor Honda, tenor motor Honda, Honda Beat Bandung, Honda Scoopy Bandung, Honda Vario Bandung, Honda PCX Bandung, Honda ADV Bandung, dealer Honda Bandung, Honda Wijaya Abadi Mulia Motor';
 export const DEFAULT_SEO_CANONICAL_URL = 'https://kreditmotorhonda.tech/';

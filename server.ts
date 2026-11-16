@@ -10,7 +10,7 @@ import { request as httpRequest } from 'node:http';
 import { promisify } from 'node:util';
 import { createServer as createViteServer } from 'vite';
 import * as XLSX from 'xlsx';
-import { MAX_IMAGE_UPLOAD_BYTES, MAX_MOTOR_IMAGES, MAX_PROMO_IMAGES } from './src/constants';
+import { DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_TITLE, MAX_IMAGE_UPLOAD_BYTES, MAX_MOTOR_IMAGES, MAX_PROMO_IMAGES } from './src/constants';
 import { DEFAULT_CATALOG_ANIMATION, isCatalogAnimation, normalizeCatalogAnimationSpeed } from './src/catalogAnimation';
 import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from './src/utils/seoPosts';
 
@@ -478,10 +478,10 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
   const isHostPost = Boolean(hostPost && hostPage && hostPost.id !== hostPage.id);
   const title = String(article
     ? `${article.title} | ${pageSettings.name || 'Honda Wijaya Abadi'}`
-    : isHostPost ? hostPost?.title : hostPage?.seoTitle || hostPage?.title || page?.title || pageSettings.seoTitle || 'Dealer Motor Honda Bandung | Harga & Kredit').trim();
+    : isHostPost ? hostPost?.title : hostPage?.seoTitle || hostPage?.title || page?.title || pageSettings.seoTitle || DEFAULT_SEO_TITLE).trim();
   const description = String(article
     ? article.excerpt || article.content.trim().slice(0, 160)
-    : isHostPost ? hostPost?.content.trim().slice(0, 160) : hostPage?.seoDescription || page?.description || pageSettings.seoDescription || 'Dealer motor Honda di Bandung: cek katalog terbaru, harga OTR, promo, simulasi kredit, DP dan tenor, serta konsultasi WhatsApp dengan cepat dan transparan.').trim();
+    : isHostPost ? hostPost?.content.trim().slice(0, 160) : hostPage?.seoDescription || page?.description || pageSettings.seoDescription || DEFAULT_SEO_DESCRIPTION).trim();
   const keywords = String(article
     ? [article.title, article.category, pageSettings.seoKeywords].filter(Boolean).join(', ')
     : hostPage?.seoKeywords || page?.keywords || pageSettings.seoKeywords || 'dealer motor Honda Bandung, harga motor Honda Bandung, kredit motor Honda Bandung, simulasi kredit Honda, promo motor Honda Bandung, DP motor Honda, tenor motor Honda, Honda Beat Bandung, Honda Scoopy Bandung, Honda Vario Bandung, Honda PCX Bandung, Honda ADV Bandung, dealer Honda Bandung, Honda Wijaya Abadi Mulia Motor').trim();
@@ -552,7 +552,17 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
         )
       : html;
 
-  return htmlWithH1Fallback
+  const hreflangPath = normalizedSeoPath === '/' ? '/' : normalizedSeoPath.endsWith('/') ? normalizedSeoPath : `${normalizedSeoPath}/`;
+  const hreflangLinks = [
+    ['id-ID', `https://kreditmotorhonda.tech${hreflangPath}`],
+    ['id', `https://kreditmotorhonda.id${hreflangPath}`],
+    ['x-default', `https://solusikreditmotor.cloud${hreflangPath}`],
+  ].map(([lang, href]) => `<link rel="alternate" hreflang="${lang}" href="${escape(href)}" />`).join('');
+  const htmlWithHreflang = htmlWithH1Fallback
+    .replace(/<link\s+rel=["']alternate["'][^>]*hreflang=["'][^>]*>/gi, '')
+    .replace(/(<link\s+rel=["']canonical["'][^>]*>)/i, `$1${hreflangLinks}`);
+
+  return htmlWithHreflang
     .replace(/<head[^>]*>/i, (head) => `${head}${heroImagePreload}${googleTrackingScript}<script>window.__HWA_INITIAL_SETTINGS__=${initialSettings};window.__HWA_INITIAL_DATA__=${initialPublicData};</script>${articleStructuredData}`)
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escape(title)}</title>`)
     .replace(/<meta\s+name="description"[^>]*>/i, `<meta name="description" content="${escape(description)}" />`)

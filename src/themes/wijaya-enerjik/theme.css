@@ -1021,6 +1021,52 @@
   color: #b5121b;
 }
 
+.website-shell.website-template-wijaya-enerjik .wijaya-enerjik-footer__socials {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.website-shell.website-template-wijaya-enerjik .wijaya-enerjik-footer__socials a {
+  display: inline-flex !important;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid rgba(24, 28, 33, 0.12);
+  border-radius: 999px;
+  color: #515b66;
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.website-shell.website-template-wijaya-enerjik .wijaya-enerjik-footer__socials a:hover {
+  border-color: #d71920;
+  color: #b5121b;
+}
+
+.website-shell.website-template-wijaya-enerjik .wijaya-enerjik-footer__socials svg {
+  width: 12px;
+  height: 12px;
+}
+
+.website-shell.website-template-wijaya-enerjik.site-mode-dark .wijaya-enerjik-footer__socials a {
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #c8cdd3;
+}
+
+@media (max-width: 640px) {
+  .website-shell.website-template-wijaya-enerjik .wijaya-enerjik-footer {
+    padding-bottom: 76px;
+  }
+
+  .website-shell.website-template-wijaya-enerjik .wijaya-enerjik-footer__socials {
+    max-width: 240px;
+  }
+}
+
 .website-shell.website-template-wijaya-enerjik .wijaya-enerjik-footer__bottom {
   border-top: 1px solid rgba(24, 28, 33, 0.14);
   color: #525c67;
