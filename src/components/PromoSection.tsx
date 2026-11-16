@@ -142,7 +142,7 @@ export const PromoSection: React.FC<PromoSectionProps> = ({ promos, settings, sh
                 <article
                   key={promo.id || idx}
                   data-promo-template={promoTemplate}
-                  className="promo-card group relative bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-3xl p-6 sm:p-8 flex flex-col justify-between hover:border-red-500/50 transition-all duration-300 shadow-xl overflow-hidden"
+                  className={`promo-card${usesShowcasePromoLayout ? ' promo-card--showcase' : ''} group relative bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-3xl p-6 sm:p-8 flex flex-col justify-between hover:border-red-500/50 transition-all duration-300 shadow-xl overflow-hidden`}
                 >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500 pointer-events-none" />
 

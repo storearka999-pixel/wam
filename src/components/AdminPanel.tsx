@@ -1194,7 +1194,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     canonicalUsesHttps = false;
   }
   const seoChecks = [
-    { label: 'Judul SEO 30-60 karakter', passed: seoTitle.length >= 30 && seoTitle.length <= 60, detail: `${seoTitle.length} karakter` },
+    { label: 'Judul SEO 30-70 karakter', passed: seoTitle.length >= 30 && seoTitle.length <= 70, detail: `${seoTitle.length} karakter` },
     { label: 'Deskripsi 160-200 karakter', passed: seoDescription.length >= 160 && seoDescription.length <= 200, detail: `${seoDescription.length} karakter` },
     { label: 'Kata kunci atau variasi relevan di judul/deskripsi', passed: focusKeywordInMetadata, detail: focusKeywordMatch.detail },
     { label: 'Canonical menggunakan HTTPS', passed: canonicalUsesHttps, detail: seoCanonicalUrl },
@@ -3708,7 +3708,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                       <label className="block space-y-1.5 text-xs font-medium text-zinc-300">
                         Judul SEO
                         <input value={settings.seoTitle ?? DEFAULT_SEO_TITLE} onChange={(event) => setSettings({ ...settings, seoTitle: event.target.value })} maxLength={70} className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Judul halaman yang tampil di Google" />
-                        <span className="block text-right text-[11px] text-zinc-500">{seoTitle.length} / 60 karakter ideal</span>
+                        <span className={`block text-right text-[11px] ${seoTitle.length >= 30 && seoTitle.length <= 70 ? 'text-emerald-400' : 'text-amber-400'}`}>{seoTitle.length} / 70 karakter · minimal 30</span>
                       </label>
                       <label className="block space-y-1.5 text-xs font-medium text-zinc-300">
                         Deskripsi SEO

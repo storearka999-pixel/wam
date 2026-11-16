@@ -173,6 +173,15 @@
 }
 
 /* Keep the campaign title visually attached to the artwork. */
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase > .promo-copy {
+  display: contents !important;
+}
+
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase > .promo-title--header {
+  grid-column: 1 / -1 !important;
+  grid-row: 1 !important;
+}
+
 .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card {
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
   grid-template-rows: auto minmax(0, 1fr) auto auto;
