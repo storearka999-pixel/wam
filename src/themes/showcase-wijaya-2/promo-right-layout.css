@@ -484,3 +484,40 @@
   .website-shell.website-template-showcase-wijaya-2 .promo-section.promo-page .promo-card { padding: 20px !important; }
   .website-shell.website-template-showcase-wijaya-2 .promo-section.promo-page .promo-image-carousel { height: 300px !important; }
 }
+
+/* Use the same spacious vertical campaign cards on the Showcase homepage. */
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: auto auto auto auto auto auto auto !important;
+  min-height: 0 !important;
+  padding: 22px !important;
+}
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase > .promo-title--header {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  margin-bottom: 14px !important;
+  font-size: clamp(20px, 2vw, 28px) !important;
+}
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase > .promo-copy { display: contents !important; }
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase > .promo-copy > .flex.items-center.justify-between {
+  grid-column: 1 !important; grid-row: 2 !important; margin-bottom: 10px !important;
+}
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-description {
+  grid-column: 1 !important; grid-row: 3 !important; margin: 0 0 8px !important; font-size: 13px !important; line-height: 1.45 !important;
+}
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-terms {
+  display: flex !important; grid-column: 1 !important; grid-row: 4 !important; margin: 0 0 8px !important;
+}
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-meta {
+  display: block !important; grid-column: 1 !important; grid-row: 5 !important; margin: 0 0 10px !important;
+}
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-action {
+  grid-column: 1 !important; grid-row: 6 !important; width: fit-content !important; min-height: 36px !important; margin: 0 0 12px !important; padding: 8px 14px !important; font-size: 11px !important;
+}
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-image-carousel {
+  grid-column: 1 !important; grid-row: 7 !important; width: 100% !important; height: 360px !important;
+}
+@media (max-width: 640px) {
+  .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase { padding: 18px !important; }
+  .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-image-carousel { height: 300px !important; }
+}
