@@ -521,3 +521,40 @@
   .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase { padding: 18px !important; }
   .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-image-carousel { height: 300px !important; }
 }
+
+/* Make the promo claim action unmistakable and conversion-focused. */
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-action,
+.website-shell.website-template-showcase-wijaya-2 .promo-section.promo-page .promo-action {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 184px !important;
+  min-height: 44px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #d71920 0%, #b5121b 100%) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 22px rgba(181, 18, 27, 0.28) !important;
+  transform: translateY(0);
+  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-action:hover,
+.website-shell.website-template-showcase-wijaya-2 .promo-section.promo-page .promo-action:hover {
+  background: linear-gradient(135deg, #ed2939 0%, #c4121c 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 28px rgba(181, 18, 27, 0.36) !important;
+  filter: saturate(1.08);
+  transform: translateY(-2px) scale(1.02);
+}
+
+.website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-action svg,
+.website-shell.website-template-showcase-wijaya-2 .promo-section.promo-page .promo-action svg {
+  width: 16px;
+  height: 16px;
+  color: #ffffff !important;
+}
