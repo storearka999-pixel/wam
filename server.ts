@@ -498,6 +498,7 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
   const logoUrl = /^https?:\/\//i.test(logoValue)
     ? logoValue
     : `${siteOrigin}${logoValue.startsWith('/') ? '' : '/'}${logoValue}`;
+  const socialImageUrl = `${siteOrigin}/uploads/og-image.jpg`;
   const canonical = article
     ? `${articleOrigin}/artikel/${encodeURIComponent(article.slug)}/`
     : hostPage
@@ -575,8 +576,10 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
     .replace(/<meta\s+property="og:url"[^>]*>/i, `<meta property="og:url" content="${escape(canonical)}" />`)
     .replace(/<meta\s+name="twitter:title"[^>]*>/i, `<meta name="twitter:title" content="${escape(title)}" />`)
     .replace(/<meta\s+name="twitter:description"[^>]*>/i, `<meta name="twitter:description" content="${escape(description)}" />`)
-    .replace(/<meta\s+property="og:image"[^>]*>/i, `<meta property="og:image" content="${escape(articleImages[0] || logoUrl)}" />`)
-    .replace(/<meta\s+name="twitter:image"[^>]*>/i, `<meta name="twitter:image" content="${escape(articleImages[0] || logoUrl)}" />`)
+    .replace(/<meta\s+property="og:image"[^>]*>/i, `<meta property="og:image" content="${escape(socialImageUrl)}" />`)
+    .replace(/<meta\s+property="og:image:width"[^>]*>/i, '<meta property="og:image:width" content="1200" />')
+    .replace(/<meta\s+property="og:image:height"[^>]*>/i, '<meta property="og:image:height" content="630" />')
+    .replace(/<meta\s+name="twitter:image"[^>]*>/i, `<meta name="twitter:image" content="${escape(socialImageUrl)}" />`)
     .replace(/https:\/\/kreditmotorhonda\.tech\/uploads\/logo\.jpeg/g, escape(logoUrl))
     .replace(/https:\/\/kreditmotorhonda\.tech/g, escape(siteOrigin))
     .replace(
