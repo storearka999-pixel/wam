@@ -515,11 +515,18 @@
   grid-column: 1 !important; grid-row: 6 !important; width: fit-content !important; min-height: 36px !important; margin: 0 0 12px !important; padding: 8px 14px !important; font-size: 11px !important;
 }
 .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-image-carousel {
-  grid-column: 1 !important; grid-row: 7 !important; width: 100% !important; height: 360px !important;
+  grid-column: 1 !important; grid-row: 7 !important; width: 100% !important; height: 320px !important;
 }
 @media (max-width: 640px) {
-  .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase { padding: 18px !important; }
-  .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-image-carousel { height: 300px !important; }
+  .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase { padding: 16px !important; }
+  .website-shell.website-template-showcase-wijaya-2 .promo-card--showcase .promo-image-carousel { height: 270px !important; }
+}
+
+.website-shell.website-template-showcase-wijaya-2 .promo-section.promo-page .promo-card {
+  padding: 24px !important;
+}
+.website-shell.website-template-showcase-wijaya-2 .promo-section.promo-page .promo-image-carousel {
+  height: 340px !important;
 }
 
 /* Make the promo claim action unmistakable and conversion-focused. */
