@@ -691,7 +691,11 @@ function getOwnerDashboardHosts(db: any = readDb()) {
     'solusikreditmotor.cloud',
     'wijaya.kreditmotorhonda.tech',
   ];
-  return configuredHosts.length ? [...new Set(configuredHosts)] : fallbackHosts;
+  const discoveredHosts = [
+    ...Object.keys(OWNER_ANALYTICS_SITE_DB_FILES),
+    ...getOwnerSeoPages(db).map((page: any) => `${String(page.subdomain).toLowerCase()}.${getSeoPageDomainSuffix(page)}`),
+  ];
+  return [...new Set([...(configuredHosts.length ? configuredHosts : fallbackHosts), ...fallbackHosts, ...discoveredHosts])];
 }
 
 function getOwnerSeoPages(db: any = readCatalogDb()) {
