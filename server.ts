@@ -2020,7 +2020,7 @@ function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPa
       title: String(rawPage.title || rawPage.seoTitle || existing?.title || subdomain).trim().slice(0, 120),
       content: String(rawPage.content ?? existing?.content ?? '').trim(),
       seoTitle: String(rawPage.seoTitle || rawPage.title || existing?.seoTitle || '').trim().slice(0, 70),
-      seoDescription: String(rawPage.seoDescription ?? existing?.seoDescription ?? '').trim().slice(0, 160),
+      seoDescription: String(rawPage.seoDescription ?? existing?.seoDescription ?? '').trim().slice(0, 200),
       seoKeywords: String(rawPage.seoKeywords ?? existing?.seoKeywords ?? '').trim().slice(0, 300),
       seoRobots: ['index, follow', 'noindex, follow', 'index, nofollow', 'noindex, nofollow'].includes(rawPage.seoRobots)
         ? rawPage.seoRobots
@@ -3905,7 +3905,7 @@ async function startServer() {
     if (!page) return res.status(404).json({ error: 'Sales Counter tidak ditemukan pada domain ini.' });
 
     page.seoTitle = String(req.body?.seoTitle || '').trim().slice(0, 70);
-    page.seoDescription = String(req.body?.seoDescription || '').trim().slice(0, 160);
+    page.seoDescription = String(req.body?.seoDescription || '').trim().slice(0, 200);
     page.seoKeywords = String(req.body?.seoKeywords || '').trim().slice(0, 300);
     page.seoRobots = ['index, follow', 'noindex, follow', 'index, nofollow', 'noindex, nofollow']
       .includes(req.body?.seoRobots) ? req.body.seoRobots : 'index, follow';
@@ -3941,7 +3941,7 @@ async function startServer() {
     const phone = String(req.body?.phone || '').replace(/[^0-9]/g, '');
     const subdomain = String(req.body?.subdomain || '').trim().toLocaleLowerCase('en-US');
     const seoTitle = String(req.body?.seoTitle || '').trim().slice(0, 70);
-    const seoDescription = String(req.body?.seoDescription || '').trim().slice(0, 160);
+    const seoDescription = String(req.body?.seoDescription || '').trim().slice(0, 200);
     const seoKeywords = String(req.body?.seoKeywords || '').trim().slice(0, 300);
     const reservedSubdomains = new Set([...RESERVED_SEO_SUBDOMAINS, 'kreditmotorhonda', 'solusi', 'sales']);
 
@@ -3974,7 +3974,7 @@ async function startServer() {
       title: `${name} | ${siteType === 'pos' ? 'POS' : 'Sales Counter'} Honda`,
       content: '',
       seoTitle: seoTitle || `${name} | Sales Counter Honda Bandung`.slice(0, 70),
-      seoDescription: seoDescription || `Hubungi ${name}, Sales Counter Honda Bandung. Konsultasi motor, harga, promo, dan simulasi kredit Honda melalui WhatsApp.`.slice(0, 160),
+      seoDescription: seoDescription || `Hubungi ${name}, Sales Counter Honda Bandung. Konsultasi motor, harga, promo, dan simulasi kredit Honda melalui WhatsApp.`.slice(0, 200),
       seoKeywords: seoKeywords || `${name}, sales Honda Bandung, kredit motor Honda Bandung`.slice(0, 300),
       seoRobots: 'index, follow',
       siteSettings: {

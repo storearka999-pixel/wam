@@ -180,6 +180,13 @@ function matchFocusKeyword(keyword: string, title: string, description: string) 
   };
 }
 
+function normalizeSeoDescription(value: string) {
+  const description = value.trim();
+  if (description.length <= 200) return description;
+  const clipped = description.slice(0, 197).replace(/\s+\S*$/, '').trim();
+  return `${clipped}...`;
+}
+
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefreshData }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'motors' | 'promos' | 'articles' | 'leads' | 'sales-counter' | 'testimonials' | 'settings' | 'theme' | 'seo' | 'seo-subdomains' | 'seo-posts' | 'security' | 'credit' | 'export'>('dashboard');
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
@@ -1169,7 +1176,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const currentTemplate = activeTemplate || visibleTemplateOptions[0];
 
   const seoTitle = settings?.seoTitle || DEFAULT_SEO_TITLE;
-  const seoDescription = settings?.seoDescription || DEFAULT_SEO_DESCRIPTION;
+  const seoDescription = normalizeSeoDescription(settings?.seoDescription || DEFAULT_SEO_DESCRIPTION);
   const seoFocusKeyword = settings?.seoFocusKeyword || DEFAULT_SEO_FOCUS_KEYWORD;
   const seoKeywords = settings?.seoKeywords || DEFAULT_SEO_KEYWORDS;
   const seoCanonicalUrl = settings?.seoCanonicalUrl || DEFAULT_SEO_CANONICAL_URL;
@@ -1188,7 +1195,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   }
   const seoChecks = [
     { label: 'Judul SEO 30-60 karakter', passed: seoTitle.length >= 30 && seoTitle.length <= 60, detail: `${seoTitle.length} karakter` },
-    { label: 'Deskripsi 120-160 karakter', passed: seoDescription.length >= 120 && seoDescription.length <= 160, detail: `${seoDescription.length} karakter` },
+    { label: 'Deskripsi 160-200 karakter', passed: seoDescription.length >= 160 && seoDescription.length <= 200, detail: `${seoDescription.length} karakter` },
     { label: 'Kata kunci atau variasi relevan di judul/deskripsi', passed: focusKeywordInMetadata, detail: focusKeywordMatch.detail },
     { label: 'Canonical menggunakan HTTPS', passed: canonicalUsesHttps, detail: seoCanonicalUrl },
     { label: 'Robots mengizinkan index dan follow', passed: allowsSearchIndexing, detail: seoRobots },
@@ -2584,7 +2591,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                     <input required value={salesCounterForm.username} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, username: event.target.value })} placeholder="Username admin" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <input required type="password" minLength={8} value={salesCounterForm.password} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, password: event.target.value })} placeholder="Password admin (min. 8 karakter)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <input maxLength={70} value={salesCounterForm.seoTitle} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoTitle: event.target.value })} placeholder="Judul SEO (opsional, maks. 70 karakter)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
-                    <textarea maxLength={160} rows={2} value={salesCounterForm.seoDescription} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoDescription: event.target.value })} placeholder="Deskripsi SEO (opsional, maks. 160 karakter)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
+                            <textarea maxLength={200} rows={2} value={salesCounterForm.seoDescription} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoDescription: event.target.value })} placeholder="Deskripsi SEO (opsional, maks. 200 karakter)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <input maxLength={300} value={salesCounterForm.seoKeywords} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoKeywords: event.target.value })} placeholder="Kata kunci SEO (opsional, pisahkan dengan koma)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <button type="submit" disabled={isSavingSalesCounter} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-500 disabled:cursor-wait disabled:opacity-60">
                       <Plus className="h-4 w-4" />
@@ -2620,7 +2627,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                             </select>
                           </label>
                           <label className="space-y-1 text-xs font-medium text-zinc-300 sm:col-span-2">Deskripsi SEO
-                            <textarea required maxLength={160} rows={3} value={salesCounterSeoForm.seoDescription} onChange={(event) => setSalesCounterSeoForm({ ...salesCounterSeoForm, seoDescription: event.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" />
+                            <textarea required maxLength={200} rows={3} value={salesCounterSeoForm.seoDescription} onChange={(event) => setSalesCounterSeoForm({ ...salesCounterSeoForm, seoDescription: event.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" />
                           </label>
                           <label className="space-y-1 text-xs font-medium text-zinc-300 sm:col-span-2">Kata kunci SEO
                             <input maxLength={300} value={salesCounterSeoForm.seoKeywords} onChange={(event) => setSalesCounterSeoForm({ ...salesCounterSeoForm, seoKeywords: event.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" />
@@ -3705,8 +3712,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                       </label>
                       <label className="block space-y-1.5 text-xs font-medium text-zinc-300">
                         Deskripsi SEO
-                        <textarea rows={4} value={settings.seoDescription ?? DEFAULT_SEO_DESCRIPTION} onChange={(event) => setSettings({ ...settings, seoDescription: event.target.value })} maxLength={200} className="w-full resize-y rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Ringkas isi halaman untuk hasil pencarian" />
-                        <span className="block text-right text-[11px] text-zinc-500">{seoDescription.length} / 160 karakter ideal</span>
+                        <textarea rows={4} value={seoDescription} onChange={(event) => setSettings({ ...settings, seoDescription: event.target.value })} maxLength={200} className="w-full resize-y rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Ringkas isi halaman untuk hasil pencarian (160-200 karakter)" />
+                        <span className={`block text-right text-[11px] ${seoDescription.length >= 160 && seoDescription.length <= 200 ? 'text-emerald-400' : 'text-amber-400'}`}>{seoDescription.length} / 200 karakter · minimal 160</span>
                       </label>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <label className="block space-y-1.5 text-xs font-medium text-zinc-300">
