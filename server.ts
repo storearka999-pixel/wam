@@ -3469,6 +3469,19 @@ async function startServer() {
         .filter((user: any) => user.username);
       return { host, dataAvailable: databaseContents.has(sourceFile), admins };
     });
+    const ownerPages = getOwnerSeoPages(db);
+    const ownerPageRows = ownerPages.map((page: any) => ({
+      host: `${String(page.subdomain || '').trim().toLowerCase()}.${getSeoPageDomainSuffix(page)}`,
+      title: String(page.title || page.seoTitle || page.subdomain || 'Tanpa judul'),
+      sslStatus: String(page.sslStatus || 'pending'),
+      seoRobots: String(page.seoRobots || 'index, follow'),
+      postCount: getSeoLandingPosts(page).length,
+      updatedAt: String(page.updatedAt || page.updated_at || page.createdAt || page.created_at || ''),
+      siteType: page.siteType === 'sales-counter' ? 'sales-counter' : page.siteType === 'pos' ? 'pos' : 'seo',
+    })).filter((page: any) => validHosts.has(page.host));
+    const posSites = ownerPageRows.filter((page: any) => page.siteType === 'pos').map(({ siteType: _siteType, ...page }: any) => page);
+    const salesCounters = ownerPageRows.filter((page: any) => page.siteType === 'sales-counter').map(({ siteType: _siteType, ...page }: any) => page);
+    const seoSubdomains = ownerPageRows.filter((page: any) => page.siteType === 'seo').map(({ siteType: _siteType, ...page }: any) => page);
     const allSiteLeads = [...databaseSources.entries()].flatMap(([sourceFile, legacyHost]) => {
       const sourceDb = databaseContents.get(sourceFile) || {};
       const interests = Array.isArray(sourceDb.interests) ? sourceDb.interests : [];
@@ -3603,6 +3616,9 @@ async function startServer() {
       sites,
       trafficSources,
       siteAdmins,
+      posSites,
+      salesCounters,
+      seoSubdomains,
       siteLeads,
       siteLeadsTotal: filteredSiteLeads.length,
       dailyVisitors,

@@ -31,6 +31,8 @@ interface OwnerAnalytics {
   sites: Array<{ host: string; visits: number }>;
   trafficSources: Array<{ source: string; visits: number }>;
   siteAdmins: Array<{ host: string; dataAvailable: boolean; admins: Array<{ username: string; role: string }> }>;
+  posSites: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string }>;
+  salesCounters: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string }>;
   seoSubdomains: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string }>;
   seoPosts: Array<{ host: string; title: string; url: string; author: string; updatedAt: string }>;
   siteLeads: Array<{ id: string; host: string; customerName: string; motorName: string; status: string; createdAt: string }>;
@@ -53,7 +55,7 @@ interface OwnerAnalytics {
 }
 
 type DateRange = '7d' | '30d' | '90d' | 'all' | 'custom';
-type OwnerDashboardSection = 'overview' | 'domains' | 'admins' | 'leads' | 'pages' | 'posts' | 'subdomains';
+type OwnerDashboardSection = 'overview' | 'domains' | 'admins' | 'leads' | 'pages' | 'pos' | 'sales-counters';
 
 function jakartaDateKey(date: Date) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(date);
@@ -270,6 +272,20 @@ export default function OwnerDashboard() {
   const sourceDonutStyle = {
     background: analytics?.totalVisits ? `conic-gradient(${donutStops.join(', ')})` : '#e5e7eb',
   };
+  const pageCategorySummary = [
+    { label: 'Landing Page', value: analytics?.topPagesTotal || 0, color: '#dc2626' },
+    { label: 'POS', value: analytics?.posSites?.length || 0, color: '#2563eb' },
+    { label: 'Sales Counter', value: analytics?.salesCounters?.length || 0, color: '#059669' },
+  ];
+  const pageCategoryTotal = pageCategorySummary.reduce((total, item) => total + item.value, 0);
+  let pageCategoryOffset = 0;
+  const pageCategoryGradient = pageCategoryTotal
+    ? pageCategorySummary.map((item) => {
+      const start = pageCategoryOffset;
+      pageCategoryOffset += (item.value / pageCategoryTotal) * 100;
+      return `${item.color} ${start}% ${pageCategoryOffset}%`;
+    }).join(', ')
+    : '#e2e8f0 0% 100%';
   const linePoints = visibleDays.map((day, index) => {
     const x = ((index + 0.5) / visibleDays.length) * 100;
     const y = 86 - (day.visits / dailyAxisMax) * 68;
@@ -281,7 +297,7 @@ export default function OwnerDashboard() {
     { id: 'domains', label: 'Domain Dipantau', icon: <Globe className="h-4 w-4" /> },
     { id: 'admins', label: 'Admin Owner', icon: <Users className="h-4 w-4" /> },
     { id: 'leads', label: 'Prospek Masuk', icon: <Users className="h-4 w-4" /> },
-    { id: 'pages', label: 'URL Landing Pages', icon: <Link2 className="h-4 w-4" /> },
+    { id: 'pages', label: 'Landing Page', icon: <Link2 className="h-4 w-4" /> },
   ];
   const sectionTitles: Record<OwnerDashboardSection, string> = {
     overview: 'Ringkasan Analitik Network',
@@ -289,15 +305,15 @@ export default function OwnerDashboard() {
     admins: 'Admin Owner',
     leads: 'Prospek Masuk',
     pages: 'URL Landing Pages',
-    posts: 'Pos SEO',
-    subdomains: 'SEO Subdomain',
+    pos: 'POS',
+    'sales-counters': 'Sales Counter',
   };
   const pageSectionNavigation = (
     <div className="flex w-fit rounded-lg bg-slate-100 p-1 text-[11px] font-semibold dark:bg-slate-800" role="group" aria-label="Bagian URL dan SEO">
       {([
-        { id: 'pages', label: 'Landing Pages' },
-        { id: 'posts', label: 'Pos SEO' },
-        { id: 'subdomains', label: 'SEO Subdomain' },
+        { id: 'pages', label: 'Landing Page' },
+        { id: 'pos', label: 'POS' },
+        { id: 'sales-counters', label: 'Sales Counter' },
       ] as const).map((section) => (
         <button key={section.id} type="button" aria-pressed={activeSection === section.id} onClick={() => { setActiveSection(section.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`rounded-md px-3 py-1.5 transition ${activeSection === section.id ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}`}>
           {section.label}
@@ -335,7 +351,7 @@ export default function OwnerDashboard() {
                   <button
                     key={item.id}
                     type="button"
-                    aria-current={activeSection === item.id || (item.id === 'pages' && (activeSection === 'posts' || activeSection === 'subdomains')) ? 'page' : undefined}
+                      aria-current={activeSection === item.id || (item.id === 'pages' && (activeSection === 'pos' || activeSection === 'sales-counters')) ? 'page' : undefined}
                     onClick={() => {
                       setActiveSection(item.id as OwnerDashboardSection);
                       setIsSidebarOpen(false);
@@ -479,6 +495,29 @@ export default function OwnerDashboard() {
               </section>}
 
               {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">{error}</div>}
+
+              <section className={`${['pages', 'pos', 'sales-counters'].includes(activeSection) ? '' : 'hidden'} overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6`} aria-label="Ringkasan kategori website">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Ringkasan Landing Page, POS &amp; Sales Counter</h2>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Perbandingan jumlah data yang terpantau pada dashboard owner.</p>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="relative h-28 w-28 shrink-0 rounded-full" style={{ background: `conic-gradient(${pageCategoryGradient})` }} role="img" aria-label={`Total ${pageCategoryTotal} data website`}>
+                      <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-white dark:bg-slate-900">
+                        <strong className="text-xl font-black text-slate-900 dark:text-white">{pageCategoryTotal}</strong>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400">Total data</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {pageCategorySummary.map((item) => <div key={item.label} className="flex min-w-40 items-center justify-between gap-5 text-xs">
+                        <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300"><i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>
+                        <strong className="tabular-nums text-slate-900 dark:text-white">{item.value}</strong>
+                      </div>)}
+                    </div>
+                  </div>
+                </div>
+              </section>
 
               <section className={`${activeSection === 'overview' ? '' : 'hidden'} grid grid-cols-1 gap-6 lg:grid-cols-3`}>
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:col-span-2">
@@ -771,46 +810,47 @@ export default function OwnerDashboard() {
                 <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.topPagesTotal || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
               </section>
 
-              {activeSection === 'posts' && <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              {activeSection === 'pos' && <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex flex-col justify-between gap-3 border-b border-slate-100 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:px-6">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Pos SEO</h2>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Semua pos dari subdomain yang dipilih ({analytics?.seoPosts?.length || 0} pos).</p>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">POS</h2>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Semua website POS yang terdaftar ({analytics?.posSites?.length || 0} website).</p>
                   </div>
                   {pageSectionNavigation}
                 </div>
-                {(analytics?.seoPosts || []).length ? (
+                {(analytics?.posSites || []).length ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[720px] border-collapse text-left">
-                      <thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-semibold uppercase text-slate-400 dark:border-slate-800 dark:bg-slate-800/50"><th className="px-5 py-3 sm:px-6">Subdomain</th><th className="px-5 py-3">Judul Pos</th><th className="px-5 py-3">Penulis</th><th className="px-5 py-3 sm:px-6">Diperbarui</th></tr></thead>
+                      <thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-semibold uppercase text-slate-400 dark:border-slate-800 dark:bg-slate-800/50"><th className="px-5 py-3 sm:px-6">Website POS</th><th className="px-5 py-3">Nama Website</th><th className="px-5 py-3">SSL</th><th className="px-5 py-3">Robots</th><th className="px-5 py-3 text-right">Pos</th><th className="px-5 py-3 sm:px-6">Diperbarui</th></tr></thead>
                       <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800/60">
-                        {paginateRows(analytics!.seoPosts, currentPage, pageSize).map((post) => <tr key={post.url} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                          <td className="px-5 py-3.5 font-medium text-slate-600 dark:text-slate-300 sm:px-6">{post.host}</td>
-                          <td className="max-w-[30rem] px-5 py-3.5 font-semibold text-slate-800 dark:text-slate-200"><a href={post.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400">{post.title}<ArrowUpRight className="h-3 w-3 shrink-0" /></a></td>
-                          <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{post.author || '-'}</td>
-                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 sm:px-6">{post.updatedAt ? new Date(post.updatedAt).toLocaleDateString('id-ID') : '-'}</td>
+                        {paginateRows(analytics!.posSites, currentPage, pageSize).map((site) => <tr key={site.host} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                          <td className="px-5 py-3.5 font-semibold text-slate-800 dark:text-slate-200 sm:px-6"><a href={`https://${site.host}`} target="_blank" rel="noreferrer" className="hover:text-red-600 dark:hover:text-red-400">{site.host}</a></td>
+                          <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{site.title}</td>
+                          <td className="px-5 py-3.5">{site.sslStatus}</td><td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{site.seoRobots}</td>
+                          <td className="px-5 py-3.5 text-right font-bold tabular-nums text-slate-900 dark:text-white">{site.postCount}</td>
+                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 sm:px-6">{site.updatedAt ? new Date(site.updatedAt).toLocaleDateString('id-ID') : '-'}</td>
                         </tr>)}
                       </tbody>
                     </table>
                   </div>
-                ) : <p className="px-6 py-10 text-center text-xs text-slate-500">Belum ada pos SEO pada subdomain yang dipantau.</p>}
-                <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.seoPosts?.length || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
+                ) : <p className="px-6 py-10 text-center text-xs text-slate-500">Belum ada website POS yang tercatat.</p>}
+                <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.posSites?.length || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
               </section>}
 
-              {activeSection === 'subdomains' && <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              {activeSection === 'sales-counters' && <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex flex-col justify-between gap-3 border-b border-slate-100 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:px-6">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">SEO Subdomain</h2>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Status, indeks, dan jumlah pos pada setiap subdomain.</p>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Sales Counter</h2>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Status dan data seluruh website sales counter.</p>
                   </div>
                   {pageSectionNavigation}
                 </div>
-                {(analytics?.seoSubdomains || []).length ? (
+                {(analytics?.salesCounters || []).length ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[720px] border-collapse text-left">
                       <thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-semibold uppercase text-slate-400 dark:border-slate-800 dark:bg-slate-800/50"><th className="px-5 py-3 sm:px-6">Subdomain</th><th className="px-5 py-3">Nama Website</th><th className="px-5 py-3">SSL</th><th className="px-5 py-3">Robots</th><th className="px-5 py-3 text-right">Pos</th><th className="px-5 py-3 sm:px-6">Diperbarui</th></tr></thead>
                       <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800/60">
-                        {paginateRows(analytics!.seoSubdomains, currentPage, pageSize).map((site) => <tr key={site.host} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                        {paginateRows(analytics!.salesCounters, currentPage, pageSize).map((site) => <tr key={site.host} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                           <td className="px-5 py-3.5 font-semibold text-slate-800 dark:text-slate-200 sm:px-6"><a href={`https://${site.host}`} target="_blank" rel="noreferrer" className="hover:text-red-600 dark:hover:text-red-400">{site.host}</a></td>
                           <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{site.title}</td>
                           <td className="px-5 py-3.5"><span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${site.sslStatus === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'}`}>{site.sslStatus}</span></td>
@@ -821,8 +861,8 @@ export default function OwnerDashboard() {
                       </tbody>
                     </table>
                   </div>
-                ) : <p className="px-6 py-10 text-center text-xs text-slate-500">Belum ada subdomain SEO yang tercatat.</p>}
-                <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.seoSubdomains?.length || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
+                ) : <p className="px-6 py-10 text-center text-xs text-slate-500">Belum ada website sales counter yang tercatat.</p>}
+                <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.salesCounters?.length || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
               </section>}
 
               <section className={`${activeSection === 'overview' ? '' : 'hidden'} overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900`} aria-label="Kata kunci pencarian">
