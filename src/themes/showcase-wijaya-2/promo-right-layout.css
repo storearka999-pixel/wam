@@ -171,3 +171,86 @@
     font-size: 11px;
   }
 }
+
+/* Keep the campaign title visually attached to the artwork. */
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  align-content: stretch;
+  row-gap: 5px;
+}
+
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card > .promo-copy {
+  display: contents !important;
+}
+
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-title {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  margin: 0 0 2px;
+  color: #171717;
+  font-size: clamp(14px, 1.2vw, 18px);
+  line-height: 1.15;
+  text-align: left;
+}
+
+.website-shell.website-template-showcase-wijaya-2.site-mode-dark main > #promo .promo-title {
+  color: #ffffff;
+}
+
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card > .promo-copy > .flex.items-center.justify-between {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: start;
+}
+
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-description {
+  grid-column: 1;
+  grid-row: 3;
+  align-self: start;
+}
+
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-action {
+  grid-column: 1;
+  grid-row: 4;
+  align-self: end;
+}
+
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-image-carousel {
+  grid-column: 2;
+  grid-row: 2 / 5;
+  align-self: stretch;
+}
+
+@media (max-width: 640px) {
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card {
+    grid-template-columns: minmax(0, 1fr) 90px;
+    grid-template-rows: auto auto 1fr auto;
+  }
+
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    font-size: 16px;
+  }
+
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card > .promo-copy > .flex.items-center.justify-between {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-description {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-action {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-image-carousel {
+    grid-column: 2;
+    grid-row: 2 / 4;
+  }
+}
