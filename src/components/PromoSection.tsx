@@ -72,8 +72,10 @@ interface PromoSectionProps {
 
 export const PromoSection: React.FC<PromoSectionProps> = ({ promos, settings, showMore = false }) => {
   const [activeImage, setActiveImage] = useState<{ src: string; alt: string } | null>(null);
-  const isShowcaseHomepage = settings.websiteTemplate === 'showcase-wijaya-2' && window.location.pathname === '/';
-  const isShowcaseHome = settings.websiteTemplate === 'showcase-wijaya-2' && window.location.pathname !== '/promo';
+  const normalizedPromoPath = window.location.pathname.replace(/\/+$/, '') || '/';
+  const isPromoPage = normalizedPromoPath === '/promo';
+  const isShowcaseHomepage = settings.websiteTemplate === 'showcase-wijaya-2' && normalizedPromoPath === '/';
+  const isShowcaseHome = settings.websiteTemplate === 'showcase-wijaya-2' && !isPromoPage;
   const usesShowcasePromoLayout = settings.websiteTemplate === 'showcase-wijaya-2';
   const visiblePromos = isShowcaseHome ? promos.slice(0, 3) : promos;
   const shouldShowMore = showMore || (isShowcaseHome && promos.length > 3);
@@ -117,7 +119,7 @@ export const PromoSection: React.FC<PromoSectionProps> = ({ promos, settings, sh
         </section>
       )}
 
-      <section id="promo" className={`promo-section py-24 bg-zinc-950 relative${isShowcaseHomepage ? ' showcase-promo-intro' : ''}${window.location.pathname === '/promo' ? ' promo-page' : ''}`}>
+      <section id="promo" className={`promo-section py-24 bg-zinc-950 relative${isShowcaseHomepage ? ' showcase-promo-intro' : ''}${isPromoPage ? ' promo-page' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto space-y-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-600/10 border border-red-500/20 text-red-400 text-xs font-bold uppercase tracking-wider">
