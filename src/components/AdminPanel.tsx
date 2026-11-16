@@ -3337,6 +3337,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                       />
                     </div>
                   </div>
+
+                  <details className="group rounded-xl border border-white/10 bg-zinc-950/40 p-4">
+                    <summary className="cursor-pointer list-none text-xs font-bold uppercase text-zinc-300 marker:hidden">
+                      <span className="inline-flex items-center gap-2">Media Sosial <span className="text-[10px] text-zinc-500 transition-transform group-open:rotate-90">›</span></span>
+                    </summary>
+                    <div className="mt-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {(['instagram', 'facebook', 'youtube', 'x', 'linkedin'] as const).map((platform) => (
+                        <label key={platform} className="text-xs font-semibold capitalize text-zinc-400">
+                          {platform === 'x' ? 'X / Twitter' : platform}
+                          <input
+                            type="url"
+                            value={settings.socialLinks?.[platform] || (platform === 'facebook' ? 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia' : platform === 'instagram' ? 'https://www.instagram.com/wijayaabadimulia' : '')}
+                            onChange={(event) => setSettings({
+                              ...settings,
+                              socialLinks: { ...settings.socialLinks, [platform]: event.target.value },
+                            })}
+                            placeholder="https://..."
+                            className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-zinc-500">Kosongkan jika ingin memakai akun sosial Honda bawaan.</p>
+                    </div>
+                  </details>
                   </>
                   )}
 

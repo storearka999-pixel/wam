@@ -12,11 +12,11 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address || 'Honda Wijaya Abadi Mulia Motor, Bandung')}`;
   const whatsappUrl = createWhatsAppUrl(settings.phone, 'Halo Honda Wijaya Abadi, saya ingin konsultasi motor Honda.');
   const socialLinks = [
-    { label: 'Instagram', href: 'https://www.instagram.com/welovehonda_id/', icon: Instagram },
-    { label: 'Facebook', href: 'https://www.facebook.com/welovehonda', icon: Facebook },
-    { label: 'YouTube', href: 'https://www.youtube.com/@welovehondaindonesia', icon: Youtube },
-    { label: 'X', href: 'https://x.com/welovehonda', icon: null },
-    { label: 'LinkedIn', href: 'https://www.linkedin.com/company/pt-astra-honda-motor/', icon: Linkedin },
+    { label: 'Instagram', href: settings.socialLinks?.instagram || 'https://www.instagram.com/wijayaabadimulia', icon: Instagram },
+    { label: 'Facebook', href: settings.socialLinks?.facebook || 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia', icon: Facebook },
+    { label: 'YouTube', href: settings.socialLinks?.youtube || 'https://www.youtube.com/@welovehondaindonesia', icon: Youtube },
+    { label: 'X', href: settings.socialLinks?.x || 'https://x.com/welovehonda', icon: null },
+    { label: 'LinkedIn', href: settings.socialLinks?.linkedin || 'https://www.linkedin.com/company/pt-astra-honda-motor/', icon: Linkedin },
   ];
 
   const scrollToTop = () => {

@@ -239,6 +239,13 @@ export interface DealerSettings {
   heroAnimation?: HeroAnimation;
   heroAnimationSpeed?: number;
   footerText: string;
+  socialLinks?: {
+    youtube?: string;
+    instagram?: string;
+    facebook?: string;
+    x?: string;
+    linkedin?: string;
+  };
   seoTitle?: string;
   seoDescription?: string;
   seoFocusKeyword?: string;

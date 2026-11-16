@@ -41,10 +41,10 @@ export function AstraHondaTopBar({ settings }: Pick<AstraHondaHeroProps, 'settin
             <span>{settings.workingHours || 'Layanan konsultasi motor Honda'}</span>
           </span>
           <div className="astra-honda-topbar__socials" aria-label="Media sosial">
-            <a href="https://www.youtube.com/@welovehondaindonesia" target="_blank" rel="noopener noreferrer" aria-label="YouTube Honda"><Youtube aria-hidden="true" /></a>
-            <a href="https://www.instagram.com/welovehonda_id/" target="_blank" rel="noopener noreferrer" aria-label="Instagram Honda"><Instagram aria-hidden="true" /></a>
-            <a href="https://www.facebook.com/welovehonda" target="_blank" rel="noopener noreferrer" aria-label="Facebook Honda"><Facebook aria-hidden="true" /></a>
-            <a href="https://x.com/welovehonda" target="_blank" rel="noopener noreferrer" aria-label="X Honda"><span aria-hidden="true">𝕏</span></a>
+            <a href={settings.socialLinks?.youtube || 'https://www.youtube.com/@welovehondaindonesia'} target="_blank" rel="noopener noreferrer" aria-label="YouTube Honda"><Youtube aria-hidden="true" /></a>
+            <a href={settings.socialLinks?.instagram || 'https://www.instagram.com/wijayaabadimulia'} target="_blank" rel="noopener noreferrer" aria-label="Instagram Honda"><Instagram aria-hidden="true" /></a>
+            <a href={settings.socialLinks?.facebook || 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia'} target="_blank" rel="noopener noreferrer" aria-label="Facebook Honda"><Facebook aria-hidden="true" /></a>
+            <a href={settings.socialLinks?.x || 'https://x.com/welovehonda'} target="_blank" rel="noopener noreferrer" aria-label="X Honda"><span aria-hidden="true">𝕏</span></a>
             <a href="#katalog" aria-label="Cari motor"><Search aria-hidden="true" /></a>
           </div>
         </div>
