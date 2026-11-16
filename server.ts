@@ -594,8 +594,9 @@ function getSalesCounterRootDomain(hostname: string) {
   return SALES_COUNTER_ROOT_DOMAINS.has(host) ? host : undefined;
 }
 
-function getSeoPageDomainSuffix(page: any) {
-  return SALES_COUNTER_ROOT_DOMAINS.has(page?.domainSuffix) ? page.domainSuffix : 'kreditmotorhonda.tech';
+function getSeoPageDomainSuffix(page: any, fallbackDomain = 'kreditmotorhonda.tech') {
+  if (!page?.domainSuffix) return fallbackDomain;
+  return SALES_COUNTER_ROOT_DOMAINS.has(page.domainSuffix) ? page.domainSuffix : 'kreditmotorhonda.tech';
 }
 
 function getSeoPageOrigin(page: any) {
@@ -610,7 +611,7 @@ function getSeoPageForHost(settings: any = {}, hostname: string) {
     // suffix from the current request host so an .id admin does not fall back
     // to the historical .tech default.
     const requestDomain = [...SALES_COUNTER_ROOT_DOMAINS].find((domain) => host.endsWith(`.${domain}`));
-    const pageDomain = page?.domainSuffix || requestDomain || 'kreditmotorhonda.tech';
+    const pageDomain = getSeoPageDomainSuffix(page, requestDomain || 'kreditmotorhonda.tech');
     const suffix = `.${pageDomain}`;
     if (!host.endsWith(suffix)) return false;
     const subdomain = host.slice(0, -suffix.length);
@@ -681,6 +682,31 @@ function getOwnerDashboardHosts(db: any = readDb()) {
     'wijaya.kreditmotorhonda.tech',
   ];
   return configuredHosts.length ? [...new Set(configuredHosts)] : fallbackHosts;
+}
+
+function includeOwnerDashboardHosts(db: any, hosts: string[]) {
+  db.settings = db.settings || {};
+  const config = db.settings.ownerDashboard || {};
+  const addedHosts = new Set(hosts.map((host) => normalizeAnalyticsHost(host)));
+  const mergeConfiguredHosts = (configuredHosts: unknown) =>
+    Array.isArray(configuredHosts) && configuredHosts.length
+      ? [...new Set([...configuredHosts, ...addedHosts])]
+      : configuredHosts;
+  db.settings.ownerDashboard = {
+    ...config,
+    ...(Array.isArray(config.selectedHosts) && config.selectedHosts.length
+      ? { selectedHosts: mergeConfiguredHosts(config.selectedHosts) }
+      : {}),
+    ...(Array.isArray(config.allowedHosts) && config.allowedHosts.length
+      ? { allowedHosts: mergeConfiguredHosts(config.allowedHosts) }
+      : {}),
+    ...(Array.isArray(config.hosts) && config.hosts.length
+      ? { hosts: mergeConfiguredHosts(config.hosts) }
+      : {}),
+    ...(Array.isArray(config.disabledHosts)
+      ? { disabledHosts: config.disabledHosts.filter((host: string) => !addedHosts.has(normalizeAnalyticsHost(host))) }
+      : {}),
+  };
 }
 
 function getOwnerAnalyticsDbCandidates() {
@@ -1918,7 +1944,7 @@ function isAdminRouteAllowed(session: any, method: string, pathname: string) {
     || isLogout || isPasswordChange || isOwnAccountUpdate || isPosWrite;
 }
 
-function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPages: any) {
+function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPages: any, fallbackDomain = 'kreditmotorhonda.tech') {
   if (!Array.isArray(requestedPages)) return 'Daftar subdomain POS tidak valid.';
   const pages = Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [];
   const currentChildren = pages.filter((page: any) => page.parentSeoPageId === posPage.id);
@@ -1930,7 +1956,7 @@ function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPa
   const currentChildIds = new Set(currentChildren.map((page: any) => page.id));
   const normalizedChildren: any[] = [];
   const seenSubdomains = new Set<string>();
-  const domainSuffix = getSeoPageDomainSuffix(posPage);
+  const domainSuffix = getSeoPageDomainSuffix(posPage, fallbackDomain);
 
   for (const rawPage of requestedChildren) {
     const id = String(rawPage.id || '').trim();
@@ -1945,7 +1971,7 @@ function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPa
     if (seenSubdomains.has(subdomain) || pages.some((page: any) => page.id !== id
       && page.parentSeoPageId !== posPage.id
       && page.subdomain === subdomain
-      && getSeoPageDomainSuffix(page) === domainSuffix)) {
+      && getSeoPageDomainSuffix(page, domainSuffix) === domainSuffix)) {
       return `Subdomain ${subdomain} sudah digunakan pada domain ini.`;
     }
     seenSubdomains.add(subdomain);
@@ -2006,6 +2032,9 @@ function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPa
     }
   }
 
+  includeOwnerDashboardHosts(db, normalizedChildren
+    .filter((page: any) => !currentChildIds.has(page.id))
+    .map((page: any) => `${page.subdomain}.${domainSuffix}`));
   db.settings.seoPages = pages.filter((page: any) => page.parentSeoPageId !== posPage.id).concat(normalizedChildren);
   return null;
 }
@@ -2078,7 +2107,12 @@ function requireSalesCounterAdmin(req: express.Request, res: express.Response, n
       && (page.adminUserId === session.id || (page.posAdminUserIds || []).includes(session.id)));
   const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
   if (isPosSuperAdmin(session) && parentPage && hostPage?.id === parentPage.id) {
-    (req as any).salesCounterScope = { domainSuffix: getSeoPageDomainSuffix(parentPage), parentSeoPageId: parentPage.id };
+    const host = normalizeAnalyticsHost(req.hostname);
+    const requestDomain = [...SALES_COUNTER_ROOT_DOMAINS].find((domain) => host.endsWith(`.${domain}`));
+    (req as any).salesCounterScope = {
+      domainSuffix: getSeoPageDomainSuffix(parentPage, requestDomain || 'kreditmotorhonda.tech'),
+      parentSeoPageId: parentPage.id,
+    };
     (req as any).adminSession = session;
     return next();
   }
@@ -2445,7 +2479,15 @@ async function startServer() {
       if (!hostPage || hostPage.id !== assignedPos.id) {
         return res.status(403).json({ error: 'POS hanya dapat mengelola post melalui domain POS induknya.' });
       }
-      const updateError = updatePosChildSeoPages(db, assignedPos, session, settingsUpdates.seoPages);
+      const host = normalizeAnalyticsHost(req.hostname);
+      const requestDomain = [...SALES_COUNTER_ROOT_DOMAINS].find((domain) => host.endsWith(`.${domain}`));
+      const updateError = updatePosChildSeoPages(
+        db,
+        assignedPos,
+        session,
+        settingsUpdates.seoPages,
+        requestDomain || 'kreditmotorhonda.tech',
+      );
       if (updateError) return res.status(400).json({ error: updateError });
       delete settingsUpdates.seoPages;
     }
@@ -2465,9 +2507,11 @@ async function startServer() {
       for (const field of siteSettingFields) {
         if (Object.prototype.hasOwnProperty.call(settingsUpdates, field)) siteSettings[field] = settingsUpdates[field];
       }
+      const host = normalizeAnalyticsHost(req.hostname);
+      const requestDomain = [...SALES_COUNTER_ROOT_DOMAINS].find((domain) => host.endsWith(`.${domain}`));
       const nextPage = {
         ...hostPage,
-        domainSuffix: getSalesCounterRootDomain(req.hostname) || hostPage.domainSuffix || 'kreditmotorhonda.tech',
+        domainSuffix: getSeoPageDomainSuffix(hostPage, requestDomain || 'kreditmotorhonda.tech'),
         siteSettings,
         ...(typeof settingsUpdates.seoTitle === 'string' ? { seoTitle: settingsUpdates.seoTitle.trim() } : {}),
         ...(typeof settingsUpdates.seoDescription === 'string' ? { seoDescription: settingsUpdates.seoDescription.trim() } : {}),
@@ -3814,7 +3858,7 @@ async function startServer() {
     const { domainSuffix, parentSeoPageId } = (req as any).salesCounterScope;
     const pages = Array.isArray(db.settings?.seoPages)
       ? db.settings.seoPages.filter((page: any) => ['pos', 'sales-counter'].includes(page.siteType || 'sales-counter')
-        && getSeoPageDomainSuffix(page) === domainSuffix
+        && getSeoPageDomainSuffix(page, domainSuffix) === domainSuffix
         && (page.parentSeoPageId || null) === parentSeoPageId)
       : [];
     const users = ensureAdminUsers(db);
@@ -3847,7 +3891,7 @@ async function startServer() {
     const page = (Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [])
       .find((item: any) => item.id === req.params.id
         && ['pos', 'sales-counter'].includes(item.siteType || 'sales-counter')
-        && getSeoPageDomainSuffix(item) === domainSuffix
+        && getSeoPageDomainSuffix(item, domainSuffix) === domainSuffix
         && (item.parentSeoPageId || null) === parentSeoPageId);
     if (!page) return res.status(404).json({ error: 'Sales Counter tidak ditemukan pada domain ini.' });
 
@@ -3902,7 +3946,7 @@ async function startServer() {
       return res.status(409).json({ error: 'Username admin sudah digunakan.' });
     }
     const currentPages = Array.isArray(sourceSettings.seoPages) ? sourceSettings.seoPages : [];
-    if (currentPages.some((page: any) => page.subdomain === subdomain && getSeoPageDomainSuffix(page) === domainSuffix)) {
+    if (currentPages.some((page: any) => page.subdomain === subdomain && getSeoPageDomainSuffix(page, domainSuffix) === domainSuffix)) {
       return res.status(409).json({ error: 'Subdomain sudah digunakan pada domain ini.' });
     }
 
@@ -3958,6 +4002,7 @@ async function startServer() {
     db.adminUsers = users;
     db.adminUsers.push(newUser);
     db.settings.seoPages = [page, ...currentPages];
+    includeOwnerDashboardHosts(db, [`${subdomain}.${domainSuffix}`]);
     appendAudit(db, { actor: session.username, action: 'CREATE_SALES_COUNTER', resource: pageId, details: `Membuat website Sales Counter ${name} (${subdomain}.${domainSuffix})` });
     if (!writeDb(db)) return res.status(500).json({ error: 'Data Sales Counter gagal disimpan.' });
 
@@ -4005,7 +4050,7 @@ async function startServer() {
     const { domainSuffix, parentSeoPageId } = (req as any).salesCounterScope;
     const page = pages.find((item: any) => item.id === req.params.id
       && ['pos', 'sales-counter'].includes(item.siteType || 'sales-counter')
-      && getSeoPageDomainSuffix(item) === domainSuffix
+      && getSeoPageDomainSuffix(item, domainSuffix) === domainSuffix
       && (item.parentSeoPageId || null) === parentSeoPageId);
     if (!page) {
       return res.status(404).json({ error: 'Sales Counter tidak ditemukan pada domain ini.' });

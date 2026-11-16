@@ -93,6 +93,12 @@ const getAdminCanonicalUrl = () => {
 };
 const getAdminDomainSuffix = (): SalesCounterRootDomain =>
   getSalesCounterDomainSuffix(window.location.hostname) || 'kreditmotorhonda.tech';
+const getSeoPageDomainSuffix = (page: { domainSuffix?: string }): SalesCounterRootDomain => {
+  const suffix = page.domainSuffix;
+  return suffix === 'kreditmotorhonda.id' || suffix === 'kreditmotorhonda.tech' || suffix === 'solusikreditmotor.cloud'
+    ? suffix
+    : getAdminDomainSuffix();
+};
 
 const SEO_KEYWORD_CONCEPTS: Record<string, string> = {
   angsuran: 'kredit',
@@ -271,7 +277,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
       || Boolean(motor.is_bestseller) === (motorBestsellerFilter === 'bestseller');
     return matchesSearch && matchesCategory && matchesBestseller;
   });
-  const seoPostEntries = (settings?.seoPages || []).flatMap((page) => getSeoLandingPosts(page).map((post) => ({ page, post })));
+  const activeSeoDomainSuffix = getAdminDomainSuffix();
+  const seoPostEntries = (settings?.seoPages || [])
+    .filter((page) => getSeoPageDomainSuffix(page) === activeSeoDomainSuffix)
+    .flatMap((page) => getSeoLandingPosts(page).map((post) => ({ page, post })));
   const hasMotorFilters = Boolean(normalizedMotorSearch)
     || motorCategoryFilter !== 'all'
     || motorBestsellerFilter !== 'all';
@@ -279,7 +288,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const motorCsvInputRef = useRef<HTMLInputElement>(null);
   const hasDuplicateSeoSubdomain = Boolean(seoSubdomainEditor && settings?.seoPages?.some((page) => (
     page.subdomain === slugifySubdomain(seoSubdomainEditor.subdomain)
-    && (page.domainSuffix || 'kreditmotorhonda.tech') === (seoSubdomainEditor.domainSuffix || 'kreditmotorhonda.tech')
+    && getSeoPageDomainSuffix(page) === getSeoPageDomainSuffix(seoSubdomainEditor)
     && page.id !== seoSubdomainEditor.id
   )));
 
@@ -503,6 +512,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
         subdomain: salesCounterForm.subdomain.trim().toLocaleLowerCase('id-ID'),
       });
       setSalesCounters((current) => [created, ...current.filter((counter) => counter.id !== created.id)]);
+      const createdHost = `${created.subdomain}.${created.domainSuffix}`;
+      setOwnerDashboardHosts((current) => current.includes(createdHost) ? current : [...current, createdHost]);
       setSalesCounterForm({ siteType: isPosSuperAdmin ? 'sales-counter' : 'pos', name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoKeywords: '' });
       showToast(`${created.siteType === 'pos' ? 'POS' : 'Sales Counter'} ${created.subdomain}.${created.domainSuffix} berhasil dibuat`);
     } catch (error: any) {
@@ -1141,9 +1152,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   // silently fell back to the first card, making the active theme appear to
   // be missing and making it easy to overwrite it accidentally.
   const activeTemplateValue = settings?.websiteTemplate || 'classic';
-  const activeSeoDomainSuffix = getAdminDomainSuffix();
   const scopedSeoPages = (settings?.seoPages || []).filter((page) =>
-    (page.domainSuffix || 'kreditmotorhonda.tech') === activeSeoDomainSuffix,
+    getSeoPageDomainSuffix(page) === activeSeoDomainSuffix,
   );
   const activeTemplate = templateOptions.find((item) => item.value === activeTemplateValue);
   const visibleTemplateOptions = activeTemplate
@@ -1602,7 +1612,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     const domainSuffix = salesCounterDomainSuffix || 'kreditmotorhonda.tech';
     const parentSeoPageId = isPosSuperAdmin ? adminSession.assignedSeoPageId : undefined;
     const subdomainPage = currentPages.find((page) => page.subdomain === subdomain
-      && (page.domainSuffix || 'kreditmotorhonda.tech') === domainSuffix
+      && getSeoPageDomainSuffix(page) === domainSuffix
       && (isPosSuperAdmin ? page.parentSeoPageId === parentSeoPageId : !page.parentSeoPageId));
     const currentPosts = subdomainPage ? getSeoLandingPosts(subdomainPage) : [];
     if (subdomainPage && currentPosts.some((post) => post.slug === slug && post.id !== seoPageEditor.id)) {
@@ -1694,7 +1704,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     const domainSuffix = salesCounterDomainSuffix || 'kreditmotorhonda.tech';
     const parentSeoPageId = isPosSuperAdmin ? adminSession.assignedSeoPageId : undefined;
     if (currentPages.some((page) => page.subdomain === subdomain
-      && (page.domainSuffix || 'kreditmotorhonda.tech') === domainSuffix
+      && getSeoPageDomainSuffix(page) === domainSuffix
       && (isPosSuperAdmin ? page.parentSeoPageId === parentSeoPageId : !page.parentSeoPageId)
       && page.id !== seoSubdomainEditor.id)) {
       alert('Subdomain tersebut sudah digunakan. Pilih subdomain lain.');
@@ -3776,9 +3786,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-white">{page.seoTitle || page.title || page.subdomain}</p>
                                 {page.sslStatus === 'active' ? (
-                                  <a href={`https://${page.subdomain}.${page.domainSuffix || 'kreditmotorhonda.tech'}`} target="_blank" rel="noreferrer" className="mt-1 block break-all text-xs text-sky-300 hover:text-sky-200">{page.subdomain}.{page.domainSuffix || 'kreditmotorhonda.tech'}</a>
+                                  <a href={`https://${page.subdomain}.${getSeoPageDomainSuffix(page)}`} target="_blank" rel="noreferrer" className="mt-1 block break-all text-xs text-sky-300 hover:text-sky-200">{page.subdomain}.{getSeoPageDomainSuffix(page)}</a>
                                 ) : (
-                                  <span className="mt-1 block break-all text-xs text-zinc-500">{page.subdomain}.{page.domainSuffix || 'kreditmotorhonda.tech'}</span>
+                                  <span className="mt-1 block break-all text-xs text-zinc-500">{page.subdomain}.{getSeoPageDomainSuffix(page)}</span>
                                 )}
                                 <p className="mt-1 text-[11px] text-zinc-500">Admin: {adminUsers.find((user) => user.id === page.adminUserId)?.username || 'Admin belum ditemukan'}</p>
                                 <p className={`mt-1 text-[11px] ${page.sslStatus === 'active' ? 'text-emerald-400' : 'text-amber-300'}`}>SSL: {page.sslStatus === 'active' ? 'Aktif' : page.sslError || 'Menunggu DNS dan verifikasi ACME'}</p>
@@ -3788,7 +3798,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                                 {page.sslStatus !== 'active' && (
                                   <button type="button" onClick={() => void handleProvisionSeoPageSsl(page)} className="rounded-lg border border-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/10">Coba SSL lagi</button>
                                 )}
-                                <button type="button" onClick={() => setSeoSubdomainEditor({ ...page, domainSuffix: page.domainSuffix || 'kreditmotorhonda.tech', adminUserId: page.adminUserId || adminSession.id })} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-800">Edit SEO</button>
+                                <button type="button" onClick={() => setSeoSubdomainEditor({ ...page, domainSuffix: getSeoPageDomainSuffix(page), adminUserId: page.adminUserId || adminSession.id })} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-800">Edit SEO</button>
                                 <button type="button" onClick={() => void handleDeleteSeoPage(page)} className="inline-flex items-center gap-1.5 rounded-lg border border-red-500 bg-red-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"><Trash2 className="h-3.5 w-3.5" />Hapus SEO</button>
                               </div>
                             </div>
@@ -3807,9 +3817,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                             Subdomain
                             <div className="flex items-center overflow-hidden rounded-lg border border-white/10 bg-zinc-900 focus-within:border-red-500">
                               <input value={seoSubdomainEditor.subdomain} onChange={(event) => setSeoSubdomainEditor({ ...seoSubdomainEditor, subdomain: slugifySubdomain(event.target.value) })} maxLength={63} className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-white focus:outline-none" placeholder="promo-vario" />
-                              <span className="shrink-0 border-l border-white/10 px-2.5 py-2.5 text-[10px] text-zinc-500">.{seoSubdomainEditor.domainSuffix || 'kreditmotorhonda.tech'}</span>
+                              <span className="shrink-0 border-l border-white/10 px-2.5 py-2.5 text-[10px] text-zinc-500">.{getSeoPageDomainSuffix(seoSubdomainEditor)}</span>
                             </div>
-                            <span className="block break-all text-[10px] text-sky-300">https://{seoSubdomainEditor.subdomain || 'subdomain'}.{seoSubdomainEditor.domainSuffix || 'kreditmotorhonda.tech'}</span>
+                            <span className="block break-all text-[10px] text-sky-300">https://{seoSubdomainEditor.subdomain || 'subdomain'}.{getSeoPageDomainSuffix(seoSubdomainEditor)}</span>
                             {hasDuplicateSeoSubdomain && <span className="block text-[11px] font-semibold text-red-300">Website ini sudah memiliki SEO subdomain.</span>}
                           </label>
                           <label className="block max-w-xl space-y-1 text-xs font-medium text-zinc-300">
@@ -3847,7 +3857,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-white">{post.title}</p>
                                 <p className="mt-1 text-[11px] text-zinc-300">@{post.authorUsername || 'Abadi'} · {post.authorRole || 'Super Admin'}</p>
-                                <a href={`https://${page.subdomain}.${page.domainSuffix || 'kreditmotorhonda.tech'}${getSeoLandingPostPath(page, post)}`} target="_blank" rel="noreferrer" className="mt-1 block break-all text-xs text-sky-300 hover:text-sky-200">{page.subdomain}.{page.domainSuffix || 'kreditmotorhonda.tech'}{getSeoLandingPostPath(page, post)}</a>
+                                <a href={`https://${page.subdomain}.${getSeoPageDomainSuffix(page)}${getSeoLandingPostPath(page, post)}`} target="_blank" rel="noreferrer" className="mt-1 block break-all text-xs text-sky-300 hover:text-sky-200">{page.subdomain}.{getSeoPageDomainSuffix(page)}{getSeoLandingPostPath(page, post)}</a>
                               </div>
                               <div className="flex shrink-0 items-center gap-2">
                                 <button type="button" onClick={() => void handleDeleteSeoPost(page, post)} className="inline-flex items-center gap-1.5 rounded-lg border border-red-500 bg-red-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"><Trash2 className="h-3.5 w-3.5" />Hapus pos</button>
@@ -3873,7 +3883,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           <div className="space-y-3 rounded-lg border border-white/10 bg-zinc-900/70 p-3">
                             <div>
                               <p className="text-[11px] font-medium text-zinc-400">Domain utama tersedia</p>
-                              <p className="mt-1 text-sm font-semibold text-white">{seoPageEditor.domainSuffix || 'kreditmotorhonda.tech'}</p>
+                              <p className="mt-1 text-sm font-semibold text-white">{getSeoPageDomainSuffix(seoPageEditor)}</p>
                             </div>
                             <label className="block space-y-1 text-xs font-medium text-zinc-300">
                               Tentukan subdomain
@@ -3888,9 +3898,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                                       : {}),
                                   });
                                 }} className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-white focus:outline-none" placeholder="promo-vario" />
-                                <span className="shrink-0 border-l border-white/10 px-2.5 py-2.5 text-[10px] text-zinc-400">.{seoPageEditor.domainSuffix || 'kreditmotorhonda.tech'}</span>
+                                <span className="shrink-0 border-l border-white/10 px-2.5 py-2.5 text-[10px] text-zinc-400">.{getSeoPageDomainSuffix(seoPageEditor)}</span>
                               </div>
-                              <span className="block break-all text-[10px] text-sky-300">Alamat subdomain: https://{seoPageEditor.subdomain || 'subdomain'}.{seoPageEditor.domainSuffix || 'kreditmotorhonda.tech'}</span>
+                              <span className="block break-all text-[10px] text-sky-300">Alamat subdomain: https://{seoPageEditor.subdomain || 'subdomain'}.{getSeoPageDomainSuffix(seoPageEditor)}</span>
                             </label>
                           </div>
 
@@ -3941,7 +3951,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                             <input value={seoPageEditor.slug || slugifySeoPost(seoPageEditor.title)} onChange={(event) => setSeoPageEditor({ ...seoPageEditor, slug: slugifySeoPost(event.target.value), slugManuallyEdited: true })} maxLength={63} className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" />
                             <span className="block break-all text-[10px] text-sky-300">
                               {seoPageEditor.subdomain
-                                ? `https://${seoPageEditor.subdomain}.${seoPageEditor.domainSuffix || 'kreditmotorhonda.tech'}${seoPageEditor.slug || slugifySeoPost(seoPageEditor.title) ? `/${seoPageEditor.slug || slugifySeoPost(seoPageEditor.title)}/` : ''}`
+                                ? `https://${seoPageEditor.subdomain}.${getSeoPageDomainSuffix(seoPageEditor)}${seoPageEditor.slug || slugifySeoPost(seoPageEditor.title) ? `/${seoPageEditor.slug || slugifySeoPost(seoPageEditor.title)}/` : ''}`
                                 : 'Tentukan subdomain di atas untuk membuat URL pos otomatis.'}
                             </span>
                             <span className="block text-[10px] text-zinc-500">Slug otomatis hanya mengikuti judul pos; kosong sampai judul diisi dan dapat diubah manual.</span>
@@ -4059,7 +4069,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                         >
                           <option value="">{securityForm.role === 'superadmin' ? 'Semua domain utama' : 'Pilih website'}</option>
                           {(settings?.seoPages || []).filter((page) => securityForm.role !== 'superadmin pos' || page.siteType === 'pos').map((page) => (
-                            <option key={page.id} value={page.id}>{page.subdomain}.{page.domainSuffix || 'kreditmotorhonda.tech'}</option>
+                            <option key={page.id} value={page.id}>{page.subdomain}.{getSeoPageDomainSuffix(page)}</option>
                           ))}
                         </select>
                       </div>
@@ -4092,7 +4102,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           { host: 'wijaya.kreditmotorhonda.tech', label: 'Wijaya Kredit Motor' },
                           { host: 'solusikreditmotor.cloud', label: 'Solusi Kredit Motor' },
                           ...(settings?.seoPages || []).map((page) => ({
-                            host: `${page.subdomain}.${page.domainSuffix || 'kreditmotorhonda.tech'}`,
+                            host: `${page.subdomain}.${getSeoPageDomainSuffix(page)}`,
                             label: page.title || page.subdomain,
                           })),
                         ].map((site) => (
@@ -4140,7 +4150,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
 
                           <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                             <div className="text-[11px] text-zinc-400">
-                              {assignedPage ? `Admin Pos: ${assignedPage.subdomain}.${assignedPage.domainSuffix || 'kreditmotorhonda.tech'}` : 'Belum ditugaskan ke admin pos'}
+                              {assignedPage ? `Admin Pos: ${assignedPage.subdomain}.${getSeoPageDomainSuffix(assignedPage)}` : 'Belum ditugaskan ke admin pos'}
                             </div>
 
                             {isSuperAdmin && (
@@ -4160,7 +4170,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                               >
                                 <option value="">Tanpa admin pos</option>
                                 {scopedSeoPages.map((page) => (
-                                  <option key={page.id} value={page.id}>{page.subdomain}.{page.domainSuffix || 'kreditmotorhonda.tech'}</option>
+                                  <option key={page.id} value={page.id}>{page.subdomain}.{getSeoPageDomainSuffix(page)}</option>
                                 ))}
                               </select>
                             )}
