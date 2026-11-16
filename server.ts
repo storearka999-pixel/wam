@@ -694,6 +694,23 @@ function getOwnerDashboardHosts(db: any = readDb()) {
   return configuredHosts.length ? [...new Set(configuredHosts)] : fallbackHosts;
 }
 
+function getOwnerSeoPages(db: any = readCatalogDb()) {
+  const pages = Array.isArray(db?.settings?.seoPages) ? [...db.settings.seoPages] : [];
+  for (const file of Object.values(OWNER_ANALYTICS_SITE_DB_FILES)) {
+    const siteDb = readJsonDbFile(file);
+    if (Array.isArray(siteDb?.settings?.seoPages)) pages.push(...siteDb.settings.seoPages);
+  }
+  const seen = new Set<string>();
+  return pages.filter((page: any) => {
+    const subdomain = String(page?.subdomain || '').trim().toLowerCase();
+    if (!subdomain) return false;
+    const host = `${subdomain}.${getSeoPageDomainSuffix(page)}`;
+    if (seen.has(host)) return false;
+    seen.add(host);
+    return true;
+  });
+}
+
 function includeOwnerDashboardHosts(db: any, hosts: string[]) {
   db.settings = db.settings || {};
   const config = db.settings.ownerDashboard || {};
@@ -2860,7 +2877,7 @@ async function startServer() {
     }
 
     const db = readDb();
-    const seoPages = Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [];
+    const seoPages = getOwnerSeoPages(db);
     const availableDomains = [...new Set([
       'kreditmotorhonda.tech',
       'kreditmotorhonda.id',
@@ -2884,7 +2901,7 @@ async function startServer() {
     const promo = globalPromos.find((item: any) => item.id === req.params.id);
     if (!promo) return res.status(404).json({ error: 'Promo global tidak ditemukan.' });
 
-    const seoPages = Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [];
+    const seoPages = getOwnerSeoPages(db);
     const allowedHosts = new Set([
       'kreditmotorhonda.tech',
       'kreditmotorhonda.id',

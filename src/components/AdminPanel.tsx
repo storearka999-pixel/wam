@@ -36,6 +36,7 @@ import {
   Shield,
   Sun,
   Moon,
+  Instagram,
 } from 'lucide-react';
 import { Motor, Promo, Testimonial, DealerSettings, LeadInterest, ManifestoItem, AdminSession, AdminUser, AuditLog, FIFPriceList, SalesCounterSite, SeoLandingPage, SeoLandingPost } from '../types';
 import { api, formatRupiah } from '../services/api';
@@ -188,7 +189,7 @@ function normalizeSeoDescription(value: string) {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefreshData }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'motors' | 'promos' | 'articles' | 'leads' | 'sales-counter' | 'testimonials' | 'settings' | 'theme' | 'seo' | 'seo-subdomains' | 'seo-posts' | 'security' | 'credit' | 'export'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'motors' | 'promos' | 'articles' | 'leads' | 'sales-counter' | 'testimonials' | 'settings' | 'social' | 'theme' | 'seo' | 'seo-subdomains' | 'seo-posts' | 'security' | 'credit' | 'export'>('dashboard');
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -2127,6 +2128,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
               { id: 'articles', label: 'Artikel', icon: FileText },
               { id: 'testimonials', label: `Ulasan (${testimonials.length})`, icon: Star },
               { id: 'settings', label: 'Pengaturan Dealer', icon: SettingsIcon },
+              { id: 'social', label: 'Media Sosial', icon: Instagram },
               { id: 'theme', label: 'Template View Website', icon: Palette },
               { id: 'seo', label: 'Dashboard SEO', icon: Search },
               ...(isSuperAdmin
@@ -3193,15 +3195,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
             )}
 
             {/* TAB 6: SETTINGS */}
-            {(activeTab === 'settings' || activeTab === 'theme') && settings && (
+            {(activeTab === 'settings' || activeTab === 'theme' || activeTab === 'social') && settings && (
               <div className="max-w-3xl space-y-6 animate-in fade-in duration-300">
                 <div>
                   <h2 className="text-lg font-bold text-white">
-                    {activeTab === 'theme' ? 'Template View Website' : 'Pengaturan Identitas Showroom'}
+                    {activeTab === 'theme' ? 'Template View Website' : activeTab === 'social' ? 'Media Sosial Website' : 'Pengaturan Identitas Showroom'}
                   </h2>
                   <p className="text-xs text-zinc-400">
                     {activeTab === 'theme'
                       ? 'Pilih template dan atur seluruh tampilan website dari satu tempat.'
+                      : activeTab === 'social'
+                        ? 'Atur link media sosial yang tampil pada website akun ini.'
                       : 'Perubahan identitas showroom disimpan ke database dan diterapkan ke website secara realtime.'}
                   </p>
                 </div>
@@ -3364,6 +3368,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                     </div>
                   </details>
                   </>
+                  )}
+
+                  {activeTab === 'social' && (
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/50 p-5 sm:p-6">
+                      <h2 className="text-lg font-bold text-white">Media Sosial Website</h2>
+                      <p className="mt-1 text-xs text-zinc-400">Atur tombol media sosial yang tampil pada website akun ini.</p>
+                      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {(['instagram', 'facebook', 'youtube', 'x', 'linkedin'] as const).map((platform) => (
+                          <label key={platform} className="text-xs font-semibold capitalize text-zinc-300">
+                            {platform === 'x' ? 'X / Twitter' : platform}
+                            <input
+                              type="url"
+                              value={settings?.socialLinks?.[platform] || (platform === 'facebook' ? 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia' : platform === 'instagram' ? 'https://www.instagram.com/wijayaabadimulia' : '')}
+                              onChange={(event) => settings && setSettings({ ...settings, socialLinks: { ...settings.socialLinks, [platform]: event.target.value } })}
+                              placeholder="https://..."
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => settings && void handleSaveSettings({ preventDefault: () => {} } as React.FormEvent)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-red-500">
+                        <Save className="h-4 w-4" /> Simpan Media Sosial
+                      </button>
+                    </div>
                   )}
 
                   {activeTab === 'theme' && (
@@ -4137,6 +4165,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                             host: `${page.subdomain}.${getSeoPageDomainSuffix(page)}`,
                             label: page.title || page.subdomain,
                           })),
+                          ...ownerDashboardHosts
+                            .filter((host) => !['kreditmotorhonda.tech', 'kreditmotorhonda.id', 'wijaya.kreditmotorhonda.tech', 'solusikreditmotor.cloud'].includes(host))
+                            .filter((host) => !(settings?.seoPages || []).some((page) => `${page.subdomain}.${getSeoPageDomainSuffix(page)}` === host))
+                            .map((host) => ({ host, label: host })),
                         ].map((site) => (
                           <label key={site.host} className="flex min-w-0 items-center gap-3 rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2.5 text-xs text-zinc-200">
                             <input
