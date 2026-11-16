@@ -4421,12 +4421,41 @@ async function startServer() {
   });
 
   app.get('/robots.txt', (req, res) => {
-    const db = readDb();
-    const page = getSeoPageForHost(db.settings || {}, req.hostname);
-    const indexRule = !page || (page.sslStatus === 'active' && page.seoRobots !== 'noindex, follow') ? 'Allow: /' : 'Disallow: /';
-    const sitemapOrigin = page ? getSeoPageOrigin(page) : `https://${normalizeAdminHost(req.hostname)}`;
-    res.set('Cache-Control', 'public, max-age=3600');
-    return res.type('text/plain').send(`User-agent: *\n${indexRule}\nDisallow: /admin\nDisallow: /dashboard\nDisallow: /login\nDisallow: /api\nDisallow: /tmp\n\nSitemap: ${sitemapOrigin}/sitemap.xml\n`);
+    // Keep this endpoint independent from the catalog database. A crawler must
+    // still receive a valid 200 text response during a transient DB failure.
+    let page: any = null;
+    try {
+      const db = readDb();
+      page = getSeoPageForHost(db.settings || {}, req.hostname);
+    } catch {
+      page = null;
+    }
+
+    const indexRule = !page || (page.sslStatus === 'active' && page.seoRobots !== 'noindex, follow')
+      ? 'Allow: /'
+      : 'Disallow: /';
+    const hostname = normalizeAdminHost(req.hostname) || 'kreditmotorhonda.tech';
+    const sitemapOrigin = page ? getSeoPageOrigin(page) : `https://${hostname}`;
+    const robots = [
+      'User-agent: *',
+      indexRule,
+      'Disallow: /admin',
+      'Disallow: /dashboard',
+      'Disallow: /login',
+      'Disallow: /api',
+      'Disallow: /tmp',
+      '',
+      `Sitemap: ${sitemapOrigin}/sitemap.xml`,
+      '',
+    ].join('\r\n');
+
+    return res
+      .status(200)
+      .set({
+        'Cache-Control': 'public, max-age=3600',
+        'Content-Type': 'text/plain; charset=utf-8',
+      })
+      .send(robots);
   });
 
   app.get('/motor/:slug', (req, res) => {
