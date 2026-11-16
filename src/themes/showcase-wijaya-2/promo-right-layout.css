@@ -184,6 +184,22 @@
   display: contents !important;
 }
 
+.website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card > .promo-title--header {
+  grid-column: 1 / -1;
+  grid-row: 1 !important;
+  min-width: 0;
+  margin: 0 0 2px;
+  color: #171717;
+  font-size: clamp(14px, 1.2vw, 18px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.website-shell.website-template-showcase-wijaya-2.site-mode-dark main > #promo .promo-card > .promo-title--header {
+  color: #ffffff;
+}
+
 .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-title {
   grid-column: 1 / -1;
   grid-row: 1 !important;
@@ -229,6 +245,12 @@
   }
 
   .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card .promo-title {
+    grid-column: 1 / -1;
+    grid-row: 1 !important;
+    font-size: 16px;
+  }
+
+  .website-shell.website-template-showcase-wijaya-2 main > #promo .promo-card > .promo-title--header {
     grid-column: 1 / -1;
     grid-row: 1 !important;
     font-size: 16px;

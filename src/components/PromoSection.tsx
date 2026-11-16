@@ -74,6 +74,7 @@ export const PromoSection: React.FC<PromoSectionProps> = ({ promos, settings, sh
   const [activeImage, setActiveImage] = useState<{ src: string; alt: string } | null>(null);
   const isShowcaseHomepage = settings.websiteTemplate === 'showcase-wijaya-2' && window.location.pathname === '/';
   const isShowcaseHome = settings.websiteTemplate === 'showcase-wijaya-2' && window.location.pathname !== '/promo';
+  const usesShowcasePromoLayout = settings.websiteTemplate === 'showcase-wijaya-2';
   const visiblePromos = isShowcaseHome ? promos.slice(0, 3) : promos;
   const shouldShowMore = showMore || (isShowcaseHome && promos.length > 3);
 
@@ -145,6 +146,12 @@ export const PromoSection: React.FC<PromoSectionProps> = ({ promos, settings, sh
                 >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500 pointer-events-none" />
 
+                  {usesShowcasePromoLayout && (
+                    <h3 className="promo-title promo-title--header text-2xl font-black text-white group-hover:text-red-400 transition-colors">
+                      {promo.title}
+                    </h3>
+                  )}
+
                   <div className="promo-copy">
                     <div className="flex items-center justify-between gap-2">
                       <span className="promo-badge px-3 py-1 rounded-full bg-red-600/20 text-red-400 text-xs font-bold border border-red-500/30">
@@ -156,9 +163,11 @@ export const PromoSection: React.FC<PromoSectionProps> = ({ promos, settings, sh
                         </span>
                       )}
                     </div>
-                    <h3 className="promo-title mt-3 text-2xl font-black text-white group-hover:text-red-400 transition-colors">
-                      {promo.title}
-                    </h3>
+                    {!usesShowcasePromoLayout && (
+                      <h3 className="promo-title mt-3 text-2xl font-black text-white group-hover:text-red-400 transition-colors">
+                        {promo.title}
+                      </h3>
+                    )}
                     {promo.description && <p className="promo-description mt-2 text-sm text-zinc-300 leading-relaxed">{promo.description}</p>}
                     <div className="promo-terms mt-3 flex items-center gap-2 text-xs text-zinc-400">
                       <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
