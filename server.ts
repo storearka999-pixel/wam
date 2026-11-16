@@ -2065,9 +2065,8 @@ function getCatalogAccessState(req: express.Request) {
   const session = getSession(req);
   const host = normalizeAnalyticsHost(req.hostname);
   const isMainCatalogHost = host === 'kreditmotorhonda.tech';
-  const isApprovedSuperAdminHost = Boolean(isGlobalSuperAdmin(session) && isSuperAdminAllowedHost(host));
   const isLocalCatalogHost = host === 'localhost' || host === '127.0.0.1';
-  const canManageCatalog = Boolean(session) && isGlobalSuperAdmin(session) && (isMainCatalogHost || isApprovedSuperAdminHost || isLocalCatalogHost);
+  const canManageCatalog = isGlobalSuperAdmin(session) && (isMainCatalogHost || isLocalCatalogHost);
 
   return {
     session,
@@ -2075,7 +2074,7 @@ function getCatalogAccessState(req: express.Request) {
     isMainCatalogHost,
     isSuperAdmin: isGlobalSuperAdmin(session),
     canManageCatalog,
-    owner: isGlobalSuperAdmin(session) && (isMainCatalogHost || isApprovedSuperAdminHost || isLocalCatalogHost),
+    owner: canManageCatalog,
     adminUrl: 'https://kreditmotorhonda.tech/admin',
   };
 }

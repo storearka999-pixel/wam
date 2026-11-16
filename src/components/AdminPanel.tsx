@@ -306,8 +306,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     api.getCatalogStatus()
       .then((status) => {
         setIsCatalogOwner(status.owner);
-        const canManageCatalog = status.canManageCatalog || adminSession.role === 'Super Admin';
-        setCanManageCatalog(canManageCatalog);
+        setCanManageCatalog(status.canManageCatalog);
         setCatalogAdminUrl(status.adminUrl);
         if (!status.owner) setActiveTab('motors');
       })
