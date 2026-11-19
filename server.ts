@@ -10,10 +10,10 @@ import { request as httpRequest } from 'node:http';
 import { promisify } from 'node:util';
 import { createServer as createViteServer } from 'vite';
 import * as XLSX from 'xlsx';
-import { DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_TITLE, MAX_ARTICLE_VIDEO_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_BYTES, MAX_MOTOR_IMAGES, MAX_PROMO_IMAGES } from './src/constants';
+import { DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_FOCUS_KEYWORD, DEFAULT_SEO_KEYWORDS, DEFAULT_SEO_TITLE, MAX_ARTICLE_VIDEO_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_BYTES, MAX_MOTOR_IMAGES, MAX_PROMO_IMAGES } from './src/constants';
 import { DEFAULT_CATALOG_ANIMATION, isCatalogAnimation, normalizeCatalogAnimationSpeed } from './src/catalogAnimation';
 import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from './src/utils/seoPosts';
-import { combineSeoKeywords } from './src/utils/seoKeywords';
+import { combineSeoKeywords, getSiteSeoFocusKeyword, getSiteSeoKeywords } from './src/utils/seoKeywords';
 import { canManageArticle } from './src/utils/articleOwnership';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -582,12 +582,16 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
       : hostPage
         ? hostPage.seoDescription || hostPage.content.trim().slice(0, 160) || DEFAULT_SEO_DESCRIPTION
         : page?.description || pageSettings.seoDescription || DEFAULT_SEO_DESCRIPTION).trim();
-  const keywordSource = String(article
-    ? article.seoKeywords || [article.title, article.category, pageSettings.seoKeywords].filter(Boolean).join(', ')
-    : hostPage
-      ? hostPage.seoKeywords || ''
-      : page?.keywords || pageSettings.seoKeywords || 'dealer motor Honda Bandung, harga motor Honda Bandung, kredit motor Honda Bandung, simulasi kredit Honda, promo motor Honda Bandung, DP motor Honda, tenor motor Honda, Honda Beat Bandung, Honda Scoopy Bandung, Honda Vario Bandung, Honda PCX Bandung, Honda ADV Bandung, dealer Honda Bandung, Honda Wijaya Abadi Mulia Motor').trim();
-  const keywords = combineSeoKeywords(pageSettings.seoFocusKeyword, keywordSource);
+  const siteFocusKeyword = hostPage
+    ? pageSettings.seoFocusKeyword
+    : getSiteSeoFocusKeyword(hostname, pageSettings.seoFocusKeyword, DEFAULT_SEO_FOCUS_KEYWORD);
+  const siteKeywords = hostPage
+    ? hostPage.seoKeywords
+    : getSiteSeoKeywords(hostname, pageSettings.seoKeywords, DEFAULT_SEO_KEYWORDS);
+  const pageKeywords = article
+    ? article.seoKeywords || [article.title, article.category].filter(Boolean).join(', ')
+    : hostPage ? hostPage.seoKeywords : page?.keywords;
+  const keywords = combineSeoKeywords(siteFocusKeyword, pageKeywords, siteKeywords);
   const normalizedHostname = normalizeAnalyticsHost(hostname);
   const isRootSiteHost = SALES_COUNTER_ROOT_DOMAINS.has(normalizedHostname)
     || normalizedHostname === 'wijaya.kreditmotorhonda.tech';
@@ -4875,7 +4879,15 @@ async function startServer() {
               return res.redirect(301, `${req.path}/${queryString}`);
             }
             res.set('Cache-Control', 'public, max-age=0, must-revalidate');
-            return res.sendFile(staticSeoPagePath);
+            const staticHtml = fs.readFileSync(staticSeoPagePath, 'utf-8');
+            const db = readDb();
+            return res.type('html').send(renderSeoMetadata(
+              staticHtml,
+              db.settings || {},
+              req.path,
+              createPublicInitialData(db, req.hostname),
+              req.hostname,
+            ));
           }
         }
 

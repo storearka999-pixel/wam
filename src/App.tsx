@@ -16,10 +16,10 @@ import { ArticleSection } from './components/ArticleSection';
 import { FooterSection } from './components/FooterSection';
 import { InterestModal } from './components/InterestModal';
 import { DEFAULT_CATALOG_ANIMATION, DEFAULT_CATALOG_ANIMATION_SPEED } from './catalogAnimation';
-import { DEFAULT_FEATURED_MOTOR_ROTATION_INTERVAL, DEFAULT_SEO_CANONICAL_URL, DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_KEYWORDS, DEFAULT_SEO_ROBOTS, DEFAULT_SEO_TITLE, HONDA_WIJAYA_COLOR_PALETTES, WIJAYA_ENERJIK_COLOR_PALETTES } from './constants';
+import { DEFAULT_FEATURED_MOTOR_ROTATION_INTERVAL, DEFAULT_SEO_CANONICAL_URL, DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_FOCUS_KEYWORD, DEFAULT_SEO_KEYWORDS, DEFAULT_SEO_ROBOTS, DEFAULT_SEO_TITLE, HONDA_WIJAYA_COLOR_PALETTES, WIJAYA_ENERJIK_COLOR_PALETTES } from './constants';
 import { createWhatsAppUrl, trackWhatsAppClick } from './utils/whatsapp';
 import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from './utils/seoPosts';
-import { combineSeoKeywords } from './utils/seoKeywords';
+import { combineSeoKeywords, getSiteSeoFocusKeyword, getSiteSeoKeywords } from './utils/seoKeywords';
 
 const AdminPanel = lazy(() => import('./components/AdminPanel').then(({ AdminPanel: panel }) => ({ default: panel })));
 
@@ -508,15 +508,16 @@ export default function App() {
         : hostSeoPage
           ? hostSeoPage.seoDescription?.trim() || hostSeoPage.content.trim().slice(0, 160) || DEFAULT_SEO_DESCRIPTION
           : activeLandingSeo?.description || settings.seoDescription?.trim() || DEFAULT_SEO_DESCRIPTION;
-    const keywordSource = activeArticle
-      ? activeArticle.seoKeywords || [activeArticle.title, activeArticle.category, settings.seoKeywords].filter(Boolean).join(', ')
-      : hostSeoPage
-        ? hostSeoPage.seoKeywords?.trim() || ''
-        : activeLandingSeo?.keywords || settings.seoKeywords?.trim() || DEFAULT_SEO_KEYWORDS;
-    const keywords = combineSeoKeywords(
-      hostSeoPage ? hostSeoPage.seoFocusKeyword : settings.seoFocusKeyword,
-      keywordSource,
-    );
+    const siteFocusKeyword = hostSeoPage
+      ? hostSeoPage.seoFocusKeyword
+      : getSiteSeoFocusKeyword(window.location.hostname, settings.seoFocusKeyword, DEFAULT_SEO_FOCUS_KEYWORD);
+    const siteKeywords = hostSeoPage
+      ? hostSeoPage.seoKeywords
+      : getSiteSeoKeywords(window.location.hostname, settings.seoKeywords, DEFAULT_SEO_KEYWORDS);
+    const pageKeywords = activeArticle
+      ? activeArticle.seoKeywords || [activeArticle.title, activeArticle.category].filter(Boolean).join(', ')
+      : hostSeoPage ? hostSeoPage.seoKeywords : activeLandingSeo?.keywords;
+    const keywords = combineSeoKeywords(siteFocusKeyword, pageKeywords, siteKeywords);
     const canonicalPath = currentPath === '/' ? '/' : `${currentPath}/`;
     const canonicalUrl = hostSeoPage
       ? `${currentSeoOrigin}${hostSeoPost ? getSeoLandingPostPath(hostSeoPage, hostSeoPost) : '/'}`
