@@ -17,6 +17,18 @@ import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from '.
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const SALES_COUNTER_ROOT_DOMAINS = new Set(['kreditmotorhonda.id', 'kreditmotorhonda.tech', 'solusikreditmotor.cloud']);
+const SEO_LANDING_PATHS = [
+  '/dealer-honda-bandung',
+  '/kredit-motor-honda-bandung',
+  '/simulasi-kredit-honda',
+  '/harga-motor-honda-bandung',
+  '/honda-beat-bandung',
+  '/honda-scoopy-bandung',
+  '/honda-vario-bandung',
+  '/honda-pcx-bandung',
+  '/honda-adv-bandung',
+  '/honda-stylo-bandung',
+];
 const DEFAULT_DATA_DIR = path.resolve(process.cwd(), 'data');
 const DATA_DIR = path.resolve(process.env.DATA_DIR || DEFAULT_DATA_DIR);
 const FALLBACK_DB_FILE = path.join(DEFAULT_DATA_DIR, 'db.json');
@@ -60,6 +72,60 @@ function isGlobalSuperAdmin(session: any) {
 
 function isPosSuperAdmin(session: any) {
   return normalizeAdminRole(session?.role) === ADMIN_ROLE_POS;
+}
+
+function migrateSalesCounterHierarchy(db: any) {
+  if (!db || typeof db !== 'object') return false;
+  db.settings = db.settings && typeof db.settings === 'object' ? db.settings : {};
+  if (!Array.isArray(db.settings.seoPages)) return false;
+
+  const pages = db.settings.seoPages;
+  const oldPages = new Map<string, any>(pages.map((page: any) => [String(page.id || ''), { ...page }]));
+  let changed = false;
+
+  for (const page of pages) {
+    if (page.parentSeoPageId) continue;
+    if ((page.siteType || 'sales-counter') === 'pos') {
+      page.siteType = 'sales-counter';
+      delete page.parentSeoPageId;
+      if (page.posAdminUserIds) delete page.posAdminUserIds;
+      changed = true;
+    } else if (!page.siteType) {
+      page.siteType = 'sales-counter';
+      changed = true;
+    }
+  }
+
+  for (const page of pages) {
+    const oldParent = oldPages.get(page.parentSeoPageId);
+    if (!page.parentSeoPageId || !oldParent) continue;
+
+    if ((page.siteType || 'sales-counter') === 'sales-counter') {
+      page.siteType = 'pos';
+      if (!page.parentSeoPageId) page.parentSeoPageId = oldParent.id;
+      changed = true;
+    } else if ((page.siteType || 'sales-counter') === 'pos') {
+      page.siteType = 'pos';
+      changed = true;
+    }
+  }
+
+  if (!Array.isArray(db.adminUsers)) db.adminUsers = [];
+  for (const user of db.adminUsers) {
+    if (normalizeAdminRole(user.role) === ADMIN_ROLE_GLOBAL) continue;
+    const assignedPage = oldPages.get(user.assignedSeoPageId);
+    if (!assignedPage) continue;
+
+    if (!assignedPage.parentSeoPageId && (assignedPage.siteType || 'sales-counter') === 'pos') {
+      user.role = ADMIN_ROLE_POS;
+      changed = true;
+    } else if (assignedPage.parentSeoPageId) {
+      user.role = ADMIN_ROLE_LIMITED;
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 // Ensure directories exist
@@ -307,7 +373,12 @@ function createPublicInitialData(db: any, hostname?: string) {
 }
 
 async function createSsrInitialData(db: any, hostname?: string) {
-  if (!CATALOG_API_URL) return createPublicInitialData(readCatalogDb(), hostname);
+  if (!CATALOG_API_URL) {
+    if (getSeoPageForHost(db.settings || {}, hostname || '')) {
+      throw new Error('Shared catalog API is required for Sales Counter and POS sites');
+    }
+    return createPublicInitialData(readCatalogDb(), hostname);
+  }
 
   const catalogApiUrl = CATALOG_API_URL;
   const options = { cache: 'no-store' as RequestCache, signal: AbortSignal.timeout(5000) };
@@ -329,6 +400,21 @@ async function createSsrInitialData(db: any, hostname?: string) {
     console.error('Shared catalog SSR fetch failed:', error);
     return createPublicInitialData(readCatalogDb(), hostname);
   }
+}
+
+async function getPublicCatalogMotors(db: any, hostname = '') {
+  const hostPage = getSeoPageForHost(db.settings || {}, hostname);
+  if (!hostPage) return Array.isArray(db.motors) ? db.motors : [];
+  if (!CATALOG_API_URL) throw new Error('Shared catalog API is required for Sales Counter and POS sites');
+
+  const response = await fetch(`${CATALOG_API_URL}/api/motors`, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) throw new Error(`Shared catalog API returned HTTP ${response.status}`);
+  const motors = await response.json();
+  if (!Array.isArray(motors)) throw new Error('Shared catalog API returned invalid motor data');
+  return motors;
 }
 
 
@@ -460,6 +546,11 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
       description: 'Cari Honda ADV di Bandung? Tanyakan ketersediaan unit, harga terbaru, promo, dan pilihan simulasi kredit kepada sales kami.',
       keywords: 'Honda ADV Bandung, harga Honda ADV, kredit Honda ADV Bandung',
     },
+    '/honda-stylo-bandung': {
+      title: 'Honda Stylo Bandung | Harga & Simulasi Kredit',
+      description: 'Cek Honda Stylo Bandung dengan informasi harga, promo, DP, cicilan, dan simulasi kredit terbaru.',
+      keywords: 'Honda Stylo Bandung, harga Honda Stylo, kredit Honda Stylo Bandung',
+    },
   };
   const hostPage = getSeoPageForHost(settings, hostname);
   const hostPost = hostPage ? findSeoLandingPost(hostPage, pathname) : undefined;
@@ -504,7 +595,7 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
     : hostPage
     ? `${siteOrigin}${hostPost ? getSeoLandingPostPath(hostPage, hostPost) : '/'}`
     : page
-    ? `${siteOrigin}${pathname.replace(/\/+$/, '') || '/'}`
+    ? `${siteOrigin}${pathname === '/' ? '/' : `/${pathname.replace(/^\/+|\/+$/g, '')}/`}`
     : String(isRootSiteHost ? `${siteOrigin}/` : pageSettings.seoCanonicalUrl || `${siteOrigin}/`).trim();
   const robots = hostPage && hostPage.sslStatus !== 'active'
     ? 'noindex, follow'
@@ -553,15 +644,8 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
         )
       : html;
 
-  const hreflangPath = normalizedSeoPath === '/' ? '/' : normalizedSeoPath.endsWith('/') ? normalizedSeoPath : `${normalizedSeoPath}/`;
-  const hreflangLinks = [
-    ['id-ID', `https://kreditmotorhonda.tech${hreflangPath}`],
-    ['id', `https://kreditmotorhonda.id${hreflangPath}`],
-    ['x-default', `https://solusikreditmotor.cloud${hreflangPath}`],
-  ].map(([lang, href]) => `<link rel="alternate" hreflang="${lang}" href="${escape(href)}" />`).join('');
   const htmlWithHreflang = htmlWithH1Fallback
-    .replace(/<link\s+rel=["']alternate["'][^>]*hreflang=["'][^>]*>/gi, '')
-    .replace(/(<link\s+rel=["']canonical["'][^>]*>)/i, `$1${hreflangLinks}`);
+    .replace(/<link\s+rel=["']alternate["'][^>]*hreflang=["'][^>]*>/gi, '');
 
   return htmlWithHreflang
     .replace(/<head[^>]*>/i, (head) => `${head}${heroImagePreload}${googleTrackingScript}<script>window.__HWA_INITIAL_SETTINGS__=${initialSettings};window.__HWA_INITIAL_DATA__=${initialPublicData};</script>${articleStructuredData}`)
@@ -1384,35 +1468,7 @@ function renderMotorSeoPage(motor: any, slug: string, settings: any = {}, hostna
       url: canonical,
       priceCurrency: 'IDR',
       ...(price ? { price: String(price) } : {}),
-      availability: 'https://schema.org/InStock',
       itemCondition: 'https://schema.org/NewCondition',
-      hasMerchantReturnPolicy: {
-        '@type': 'MerchantReturnPolicy',
-        applicableCountry: 'ID',
-        merchantReturnDays: 7,
-        returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
-      },
-      shippingDetails: {
-        '@type': 'OfferShippingDetails',
-        shippingDestination: {
-          '@type': 'DefinedRegion',
-          addressCountry: 'ID',
-        },
-        shippingRate: {
-          '@type': 'MonetaryAmount',
-          value: 0,
-          currency: 'IDR',
-        },
-        deliveryTime: {
-          '@type': 'DeliveryTimeSettings',
-          transitTime: {
-            '@type': 'QuantitativeValue',
-            minValue: 1,
-            maxValue: 3,
-            unitCode: 'DAY',
-          },
-        },
-      },
     },
   };
   const specificationList = specs.length
@@ -1426,7 +1482,7 @@ function renderMotorSeoPage(motor: any, slug: string, settings: any = {}, hostna
   <title>${safeName} Bandung | Harga, Spesifikasi & Kredit Honda</title>
   <meta name="description" content="${safeDescription}">
   <meta name="keywords" content="harga ${safeName} Bandung, kredit ${safeName}, spesifikasi ${safeName}, motor Honda Bandung">
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content="${hostPage ? 'noindex, follow' : 'index, follow'}">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-honda-32.png?v=20261108">
   <link rel="icon" type="image/png" sizes="192x192" href="/favicon-honda-192.png?v=20261108">
   <link rel="icon" type="image/png" sizes="512x512" href="/favicon-honda.png?v=20261108">
@@ -1477,6 +1533,7 @@ function renderDynamicSitemap(db: any, hostname = '') {
     { path: '/honda-vario-bandung/', changefreq: 'weekly', priority: '0.9' },
     { path: '/honda-pcx-bandung/', changefreq: 'weekly', priority: '0.9' },
     { path: '/honda-adv-bandung/', changefreq: 'weekly', priority: '0.8' },
+    { path: '/honda-stylo-bandung/', changefreq: 'weekly', priority: '0.8' },
   ];
   const motorPages = getSeoMotorPages(db).map(({ motor, path: pagePath }) => ({
     path: pagePath,
@@ -1516,7 +1573,7 @@ function renderDynamicSitemap(db: any, hostname = '') {
     }));
   const today = new Date().toISOString().slice(0, 10);
   const sitemapPages = post
-    ? [{ path: '/', changefreq: 'weekly', priority: '1.0' }, ...hostPostPages, ...motorPages, ...articlePages]
+    ? [{ path: '/', changefreq: 'weekly', priority: '1.0' }, ...hostPostPages, ...articlePages]
     : isPrimaryHost
       ? [...staticPages, ...motorPages, ...articlePages]
       : articlePages;
@@ -1752,6 +1809,7 @@ function verifyPassword(password: string, storedHash: string) {
 }
 
 function ensureAdminUsers(db: any) {
+  const hierarchyChanged = migrateSalesCounterHierarchy(db);
   if (!Array.isArray(db.adminUsers) || db.adminUsers.length === 0) {
     db.adminUsers = [{
       id: 'admin-abadi',
@@ -1770,7 +1828,7 @@ function ensureAdminUsers(db: any) {
         rolesChanged = true;
       }
     }
-    if (rolesChanged) writeDb(db);
+    if (hierarchyChanged || rolesChanged) writeDb(db);
   }
   return db.adminUsers;
 }
@@ -1937,13 +1995,13 @@ function isAdminAuthorizedForHost(session: any, hostname: string, db: any = read
   const pages = Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [];
   const hostPost = getSeoPageForHost(db.settings || {}, host);
   if (role === ADMIN_ROLE_POS) {
-    const assignedPos = pages.find((page: any) => page.id === session.assignedSeoPageId
-      && page.siteType === 'pos'
+    const assignedCounter = pages.find((page: any) => page.id === session.assignedSeoPageId
+      && (page.siteType || 'sales-counter') === 'sales-counter'
       && (page.adminUserId === session.id || (page.posAdminUserIds || []).includes(session.id)));
-    if (!assignedPos) return false;
-    if (hostPost?.id === assignedPos.id) return true;
-    return Boolean(hostPost?.parentSeoPageId === assignedPos.id
-      && getSeoPageDomainSuffix(hostPost) === getSeoPageDomainSuffix(assignedPos));
+    if (!assignedCounter) return false;
+    if (hostPost?.id === assignedCounter.id) return true;
+    return Boolean(hostPost?.parentSeoPageId === assignedCounter.id
+      && getSeoPageDomainSuffix(hostPost) === getSeoPageDomainSuffix(assignedCounter));
   }
 
   if (session.assignedHost) return normalizeAdminHost(session.assignedHost) === host;
@@ -2136,7 +2194,7 @@ function requireSalesCounterAdmin(req: express.Request, res: express.Response, n
   }
   const parentPage = (Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : [])
     .find((page: any) => page.id === session.assignedSeoPageId
-      && page.siteType === 'pos'
+      && (page.siteType || 'sales-counter') === 'sales-counter'
       && (page.adminUserId === session.id || (page.posAdminUserIds || []).includes(session.id)));
   const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
   if (isPosSuperAdmin(session) && parentPage && hostPage?.id === parentPage.id) {
@@ -2407,12 +2465,13 @@ async function startServer() {
         return res.status(403).json({ error: 'Akses POS tidak diizinkan untuk domain ini.' });
       }
       const pages = Array.isArray(settings.seoPages) ? settings.seoPages : [];
-      const posPage = pages.find((item: any) => item.id === session?.assignedSeoPageId && item.siteType === 'pos');
-      if (!posPage) return res.status(403).json({ error: 'POS untuk akun ini tidak ditemukan.' });
-      const activePage = page?.parentSeoPageId === posPage.id ? page : posPage;
+      const counterPage = pages.find((item: any) => item.id === session?.assignedSeoPageId
+        && (item.siteType || 'sales-counter') === 'sales-counter');
+      if (!counterPage) return res.status(403).json({ error: 'Sales Counter untuk akun ini tidak ditemukan.' });
+      const activePage = page?.parentSeoPageId === counterPage.id ? page : counterPage;
       return res.json({
         ...getSettingsForSeoPage(settings, activePage),
-        seoPages: pages.filter((item: any) => item.id === posPage.id || item.parentSeoPageId === posPage.id),
+        seoPages: pages.filter((item: any) => item.id === counterPage.id || item.parentSeoPageId === counterPage.id),
       });
     }
     if (page) return res.json(publicSettings(getSettingsForSeoPage(settings, page)));
@@ -2476,12 +2535,12 @@ async function startServer() {
     const isGlobalAdmin = isGlobalSuperAdmin(session);
     const isPosAdmin = isPosSuperAdmin(session);
     const settingsUpdates = { ...(req.body || {}) };
-    let assignedPos: any;
+    let assignedCounter: any;
     if (isPosAdmin) {
-      assignedPos = (db.settings?.seoPages || []).find((item: any) => item.id === session.assignedSeoPageId
-        && item.siteType === 'pos'
+      assignedCounter = (db.settings?.seoPages || []).find((item: any) => item.id === session.assignedSeoPageId
+        && (item.siteType || 'sales-counter') === 'sales-counter'
         && (item.adminUserId === session.id || (item.posAdminUserIds || []).includes(session.id)));
-      if (!assignedPos) return res.status(403).json({ error: 'POS untuk akun ini tidak ditemukan.' });
+      if (!assignedCounter) return res.status(403).json({ error: 'Sales Counter untuk akun ini tidak ditemukan.' });
     }
     if (!isGlobalAdmin) {
       const editableFields = new Set([
@@ -2491,7 +2550,7 @@ async function startServer() {
         ...(isPosAdmin ? ['seoTitle', 'seoDescription', 'seoKeywords', 'seoRobots'] : []),
       ]);
       for (const key of Object.keys(settingsUpdates)) {
-        if (!editableFields.has(key) && !(isPosAdmin && key === 'seoPages' && hostPage?.id === assignedPos.id)) {
+        if (!editableFields.has(key) && !(isPosAdmin && key === 'seoPages' && hostPage?.id === assignedCounter.id)) {
           delete settingsUpdates[key];
         }
       }
@@ -2509,14 +2568,14 @@ async function startServer() {
       }
     }
     if (isPosAdmin && Object.prototype.hasOwnProperty.call(settingsUpdates, 'seoPages')) {
-      if (!hostPage || hostPage.id !== assignedPos.id) {
-        return res.status(403).json({ error: 'POS hanya dapat mengelola post melalui domain POS induknya.' });
+      if (!hostPage || hostPage.id !== assignedCounter.id) {
+        return res.status(403).json({ error: 'Sales Counter hanya dapat mengelola POS melalui domain induknya.' });
       }
       const host = normalizeAnalyticsHost(req.hostname);
       const requestDomain = [...SALES_COUNTER_ROOT_DOMAINS].find((domain) => host.endsWith(`.${domain}`));
       const updateError = updatePosChildSeoPages(
         db,
-        assignedPos,
+        assignedCounter,
         session,
         settingsUpdates.seoPages,
         requestDomain || 'kreditmotorhonda.tech',
@@ -2564,9 +2623,14 @@ async function startServer() {
   });
 
   // Motors
-  app.get('/api/motors', (req, res) => {
-    const db = readDb();
-    res.json(db.motors || []);
+  app.get('/api/motors', async (req, res) => {
+    try {
+      const db = readDb();
+      res.json(await getPublicCatalogMotors(db, req.hostname));
+    } catch (error) {
+      console.error('Motor API catalog load failed:', error);
+      res.status(503).json({ error: 'Katalog pusat kreditmotorhonda.tech belum tersedia.' });
+    }
   });
 
   const fifWorkbookHeaders = FIF_DP_PERCENTAGES.flatMap((percentage) => [
@@ -3847,10 +3911,12 @@ async function startServer() {
     const db = readDb();
     const page = (Array.isArray(db.settings?.seoPages) ? db.settings.seoPages : []).find((item: any) => item.id === req.params.id);
     if (!page) return res.status(404).json({ error: 'Post subdomain tidak ditemukan.' });
-    const assignedPos = isPosSuperAdmin(session)
-      ? db.settings.seoPages.find((item: any) => item.id === session.assignedSeoPageId && item.siteType === 'pos')
+    const assignedCounter = isPosSuperAdmin(session)
+      ? db.settings.seoPages.find((item: any) => item.id === session.assignedSeoPageId
+        && (item.siteType || 'sales-counter') === 'sales-counter')
       : null;
-    if (!isGlobalSuperAdmin(session) && !(assignedPos && page.parentSeoPageId === assignedPos.id)) {
+    if (!isGlobalSuperAdmin(session) && !(assignedCounter
+      && (page.id === assignedCounter.id || page.parentSeoPageId === assignedCounter.id))) {
       return res.status(403).json({ error: 'Role ini tidak dapat mengaktifkan SSL pada subdomain tersebut.' });
     }
 
@@ -3974,7 +4040,7 @@ async function startServer() {
     const users = ensureAdminUsers(db);
     const sourceSettings = db.settings;
     const { domainSuffix, parentSeoPageId } = (req as any).salesCounterScope;
-    const siteType = parentSeoPageId ? 'sales-counter' : req.body?.siteType === 'pos' ? 'pos' : 'sales-counter';
+    const siteType = parentSeoPageId ? 'pos' : 'sales-counter';
     const name = String(req.body?.name || '').trim();
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '');
@@ -4042,7 +4108,7 @@ async function startServer() {
       id: adminUserId,
       username,
       passwordHash: hashPassword(password),
-      role: siteType === 'pos' ? ADMIN_ROLE_POS : ADMIN_ROLE_LIMITED,
+      role: siteType === 'sales-counter' ? ADMIN_ROLE_POS : ADMIN_ROLE_LIMITED,
       assignedSeoPageId: pageId,
       assignedHost: `${subdomain}.${domainSuffix}`,
       created_at: now,
@@ -4147,11 +4213,11 @@ async function startServer() {
       ? (db.settings?.seoPages || []).find((page: any) => page.id === assignedSeoPageId)
       : undefined;
     if (!username || password.length < 8) return res.status(400).json({ error: 'Username wajib diisi dan password minimal 8 karakter' });
-    if (role === ADMIN_ROLE_POS && (!assignedPage || assignedPage.siteType !== 'pos')) {
-      return res.status(400).json({ error: 'Superadmin POS wajib ditugaskan ke website POS.' });
+    if (role === ADMIN_ROLE_POS && (!assignedPage || (assignedPage.siteType || 'sales-counter') !== 'sales-counter')) {
+      return res.status(400).json({ error: 'Superadmin POS wajib ditugaskan ke website Sales Counter induk.' });
     }
-    if (role === ADMIN_ROLE_LIMITED && assignedPage?.siteType === 'pos') {
-      return res.status(400).json({ error: 'Role admin biasa tidak dapat ditugaskan sebagai pengelola POS.' });
+    if (role === ADMIN_ROLE_LIMITED && (assignedPage?.siteType || 'sales-counter') === 'sales-counter') {
+      return res.status(400).json({ error: 'Role admin biasa tidak dapat ditugaskan sebagai pengelola Sales Counter induk.' });
     }
     if (role === ADMIN_ROLE_GLOBAL && assignedSeoPageId) {
       return res.status(400).json({ error: 'Superadmin global tidak menggunakan assignment website.' });
@@ -4433,7 +4499,15 @@ async function startServer() {
     res.set('Cache-Control', 'no-cache');
     const db = readDb();
     db.articles = getSiteArticles(readSiteDb(), req.hostname);
-    res.type('application/xml').send(renderDynamicSitemap(db, req.hostname));
+    void getPublicCatalogMotors(db, req.hostname)
+      .then((motors) => {
+        db.motors = motors;
+        res.type('application/xml').send(renderDynamicSitemap(db, req.hostname));
+      })
+      .catch((error) => {
+        console.error('Sitemap catalog load failed:', error);
+        res.status(503).type('text').send('Sitemap sementara tidak tersedia.');
+      });
   });
 
   app.get('/robots.txt', (req, res) => {
@@ -4451,7 +4525,11 @@ async function startServer() {
       ? 'Allow: /'
       : 'Disallow: /';
     const hostname = normalizeAdminHost(req.hostname) || 'kreditmotorhonda.tech';
-    const sitemapOrigin = page ? getSeoPageOrigin(page) : `https://${hostname}`;
+    const sitemapOrigin = page
+      ? getSeoPageOrigin(page)
+      : SALES_COUNTER_ROOT_DOMAINS.has(hostname)
+        ? `https://${hostname}`
+        : 'https://kreditmotorhonda.tech';
     const robots = [
       'User-agent: *',
       indexRule,
@@ -4474,17 +4552,54 @@ async function startServer() {
       .send(robots);
   });
 
-  app.get('/motor/:slug', (req, res) => {
-    const db = readDb();
-    const productPage = getSeoMotorPages(db).find((page) => page.slug === req.params.slug);
-    if (!productPage) {
-      return res.status(404).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Motor tidak tersedia</title><body><main><h1>Motor tidak tersedia</h1><p>Unit ini sudah tidak tercantum di katalog.</p><a href="/#katalog">Lihat katalog motor aktif</a></main></body></html>');
+  app.get('/motor/:slug', async (req, res) => {
+    try {
+      const db = readDb();
+      db.motors = await getPublicCatalogMotors(db, req.hostname);
+      const productPage = getSeoMotorPages(db).find((page) => page.slug === req.params.slug);
+      if (!productPage) {
+        return res.status(404).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Motor tidak tersedia</title><body><main><h1>Motor tidak tersedia</h1><p>Unit ini sudah tidak tercantum di katalog.</p><a href="/#katalog">Lihat katalog motor aktif</a></main></body></html>');
+      }
+
+      res.set('Cache-Control', 'public, max-age=300');
+      const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
+      const hostSettings = hostPage ? getSettingsForSeoPage(db.settings || {}, hostPage) : db.settings || {};
+      return res.type('html').send(renderMotorSeoPage(productPage.motor, productPage.slug, hostSettings, req.hostname));
+    } catch (error) {
+      console.error('Motor catalog load failed:', error);
+      return res.status(503).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Katalog sementara tidak tersedia</title><body><main><h1>Katalog sementara tidak tersedia</h1><p>Silakan coba lagi beberapa saat lagi.</p><a href="/">Kembali ke beranda</a></main></body></html>');
+    }
+  });
+
+  app.get(SEO_LANDING_PATHS, (req, res, next) => {
+    if (!req.path.endsWith('/')) {
+      return res.redirect(301, `${req.path}/${req.originalUrl.slice(req.path.length)}`);
     }
 
-    res.set('Cache-Control', 'public, max-age=300');
-    const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
-    const hostSettings = hostPage ? getSettingsForSeoPage(db.settings || {}, hostPage) : db.settings || {};
-    return res.type('html').send(renderMotorSeoPage(productPage.motor, productPage.slug, hostSettings, req.hostname));
+    try {
+      const db = readDb();
+      const pageRoot = process.env.NODE_ENV === 'production'
+        ? path.join(process.cwd(), 'dist')
+        : path.join(process.cwd(), 'public');
+      const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
+      if (hostPage) {
+        return res.status(404).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Halaman tidak ditemukan</title><body><main><h1>Halaman tidak ditemukan</h1><p>Halaman ini tidak tersedia di website Sales Counter atau POS ini.</p><a href="/">Kembali ke beranda</a></main></body></html>');
+      }
+      const landingFile = path.join(pageRoot, req.path, 'index.html');
+      if (!fs.existsSync(landingFile)) return next();
+
+      const html = fs.readFileSync(landingFile, 'utf-8');
+      res.set('Cache-Control', 'public, max-age=300');
+      return res.type('html').send(renderSeoMetadata(
+        html,
+        db.settings || {},
+        req.path,
+        createPublicInitialData(db, req.hostname),
+        req.hostname,
+      ));
+    } catch (error) {
+      return next(error);
+    }
   });
 
   // Vite middleware in dev or static files in production
@@ -4496,19 +4611,11 @@ async function startServer() {
 
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: 'custom',
     });
     app.get([
       '/',
-      '/dealer-honda-bandung',
-      '/kredit-motor-honda-bandung',
-      '/simulasi-kredit-honda',
-      '/harga-motor-honda-bandung',
-      '/honda-beat-bandung',
-      '/honda-scoopy-bandung',
-      '/honda-vario-bandung',
-      '/honda-pcx-bandung',
-      '/honda-adv-bandung',
+      '/',
     ], async (req, res, next) => {
       try {
         const indexHtml = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
@@ -4519,6 +4626,23 @@ async function startServer() {
         res.type('html').send(renderSeoMetadata(transformedHtml, db.settings || {}, req.path, initialData, req.hostname));
       } catch (error) {
         next(error);
+      }
+    });
+    app.get('*', async (req, res, next) => {
+      try {
+        const db = readDb();
+        const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
+        const hostPost = hostPage ? findSeoLandingPost(hostPage, req.path) : undefined;
+        if (!hostPage || !hostPost || req.path === '/') return next();
+        if (!req.path.endsWith('/')) return res.redirect(301, `${req.path}/${req.originalUrl.slice(req.path.length)}`);
+
+        const indexHtml = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
+        const transformedHtml = await vite.transformIndexHtml(req.originalUrl, indexHtml);
+        const initialData = await createSsrInitialData(db, req.hostname);
+        res.set('Cache-Control', 'no-cache');
+        return res.type('html').send(renderSeoMetadata(transformedHtml, db.settings || {}, req.path, initialData, req.hostname));
+      } catch (error) {
+        return next(error);
       }
     });
     app.get('/artikel/:slug', async (req, res, next) => {
@@ -4537,19 +4661,12 @@ async function startServer() {
       }
     });
     app.use(vite.middlewares);
+    app.use((req, res) => res.status(404).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Halaman tidak ditemukan</title><body><main><h1>Halaman tidak ditemukan</h1><p>URL yang diminta tidak tersedia.</p><a href="/">Kembali ke beranda</a></main></body></html>'));
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.get([
       '/',
-      '/dealer-honda-bandung',
-      '/kredit-motor-honda-bandung',
-      '/simulasi-kredit-honda',
-      '/harga-motor-honda-bandung',
-      '/honda-beat-bandung',
-      '/honda-scoopy-bandung',
-      '/honda-vario-bandung',
-      '/honda-pcx-bandung',
-      '/honda-adv-bandung',
+      '/',
     ], (req, res, next) => {
       try {
         const indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
@@ -4579,19 +4696,31 @@ async function startServer() {
         res.setHeader('Cache-Control', cacheControl);
       },
     }));
-    app.get('*', (req, res) => {
-      if (path.extname(req.path)) return res.sendStatus(404);
+    app.get('/artikel/:slug', (req, res) => {
       const indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
       const db = readDb();
       db.articles = getSiteArticles(readSiteDb(), req.hostname);
       const initialData = createPublicInitialData(db, req.hostname);
-      const articlePath = req.path.match(/^\/artikel\/([^/]+)\/?$/);
-      if (articlePath && !initialData.articles.some((item: any) => item.slug === articlePath[1] && item.published === true)) {
+      const article = initialData.articles.find((item: any) => item.slug === req.params.slug && item.published === true);
+      if (!article) {
         return res.status(404).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Artikel tidak ditemukan</title><body><main><h1>Artikel tidak ditemukan</h1><a href="/#artikel">Lihat artikel</a></main></body></html>');
       }
       res.set('Cache-Control', 'no-cache');
-      res.type('html').send(renderSeoMetadata(indexHtml, db.settings || {}, req.path, initialData, req.hostname));
+      return res.type('html').send(renderSeoMetadata(indexHtml, db.settings || {}, req.path, initialData, req.hostname));
     });
+    app.get('*', (req, res, next) => {
+      const db = readDb();
+      const hostPage = getSeoPageForHost(db.settings || {}, req.hostname);
+      const hostPost = hostPage ? findSeoLandingPost(hostPage, req.path) : undefined;
+      if (!hostPage || !hostPost || req.path === '/') return next();
+      if (!req.path.endsWith('/')) return res.redirect(301, `${req.path}/${req.originalUrl.slice(req.path.length)}`);
+
+      const indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+      const initialData = createPublicInitialData(db, req.hostname);
+      res.set('Cache-Control', 'no-cache');
+      return res.type('html').send(renderSeoMetadata(indexHtml, db.settings || {}, req.path, initialData, req.hostname));
+    });
+    app.get('*', (req, res) => res.status(404).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Halaman tidak ditemukan</title><body><main><h1>Halaman tidak ditemukan</h1><p>URL yang diminta tidak tersedia.</p><a href="/">Kembali ke beranda</a></main></body></html>'));
   }
 
   app.listen(PORT, HOST, () => {

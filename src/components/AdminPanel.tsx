@@ -515,7 +515,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     try {
       const created = await api.createSalesCounter({
         ...salesCounterForm,
-        siteType: isPosSuperAdmin ? 'sales-counter' : salesCounterForm.siteType,
+        siteType: isPosSuperAdmin ? 'pos' : 'sales-counter',
         subdomain: salesCounterForm.subdomain.trim().toLocaleLowerCase('id-ID'),
       });
       setSalesCounters((current) => [created, ...current.filter((counter) => counter.id !== created.id)]);
@@ -2569,22 +2569,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
             {activeTab === 'sales-counter' && canManageSalesCounters && (
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div>
-                  <h2 className="text-lg font-bold text-white">{isPosSuperAdmin ? 'Sales Counter POS' : 'POS & Sales Counter'}</h2>
-                  <p className="mt-1 text-xs text-zinc-400">{isPosSuperAdmin ? 'Kelola Sales Counter turunan POS ini.' : 'Buat POS utama atau Sales Counter pada domain ini.'}</p>
+                  <h2 className="text-lg font-bold text-white">{isPosSuperAdmin ? 'POS dari Sales Counter' : 'Sales Counter'}</h2>
+                  <p className="mt-1 text-xs text-zinc-400">{isPosSuperAdmin ? 'Buat dan kelola POS yang menginduk pada Sales Counter ini.' : 'Buat Sales Counter pada domain utama ini. POS dibuat oleh admin Sales Counter masing-masing.'}</p>
                 </div>
 
                 <section className="space-y-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-5">
                   <form onSubmit={handleCreateSalesCounter} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {isSuperAdmin && (
-                      <label className="space-y-1 text-[11px] font-semibold text-zinc-400">
-                        Tipe website
-                        <select value={salesCounterForm.siteType} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, siteType: event.target.value as 'pos' | 'sales-counter' })} className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none">
-                          <option value="pos">POS</option>
-                          <option value="sales-counter">Sales Counter (SC)</option>
-                        </select>
-                      </label>
-                    )}
-                    <input required value={salesCounterForm.name} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, name: event.target.value })} placeholder={salesCounterForm.siteType === 'pos' && isSuperAdmin ? 'Nama POS' : 'Nama sales counter'} className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
+                    <input required value={salesCounterForm.name} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, name: event.target.value })} placeholder={isPosSuperAdmin ? 'Nama POS' : 'Nama sales counter'} className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <input required type="tel" value={salesCounterForm.phone} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, phone: event.target.value })} placeholder="Nomor WhatsApp (62...)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <div className="flex min-w-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-950 focus-within:border-red-500">
                       <input required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={63} value={salesCounterForm.subdomain} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, subdomain: event.target.value.toLocaleLowerCase('id-ID').replace(/[^a-z0-9-]/g, '') })} placeholder="Subdomain" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none" />
@@ -2597,7 +2588,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                     <input maxLength={300} value={salesCounterForm.seoKeywords} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoKeywords: event.target.value })} placeholder="Kata kunci SEO (opsional, pisahkan dengan koma)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <button type="submit" disabled={isSavingSalesCounter} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-500 disabled:cursor-wait disabled:opacity-60">
                       <Plus className="h-4 w-4" />
-                      {isSavingSalesCounter ? 'Membuat website...' : isPosSuperAdmin ? 'Tambah SC di POS' : salesCounterForm.siteType === 'pos' ? 'Buat POS' : 'Tambah Sales Counter'}
+                      {isSavingSalesCounter ? 'Membuat website...' : isPosSuperAdmin ? 'Tambah POS' : 'Tambah Sales Counter'}
                     </button>
                   </form>
                 </section>
@@ -4128,7 +4119,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
                         >
                           <option value="">{securityForm.role === 'superadmin' ? 'Semua domain utama' : 'Pilih website'}</option>
-                          {(settings?.seoPages || []).filter((page) => securityForm.role !== 'superadmin pos' || page.siteType === 'pos').map((page) => (
+                          {(settings?.seoPages || []).filter((page) => securityForm.role !== 'superadmin pos'
+                            || (page.siteType || 'sales-counter') === 'sales-counter').map((page) => (
                             <option key={page.id} value={page.id}>{page.subdomain}.{getSeoPageDomainSuffix(page)}</option>
                           ))}
                         </select>
