@@ -44,7 +44,7 @@ test('motor without photo still remains visible in catalog results', () => {
   assert.deepEqual(filtered.map((motor) => motor.id), ['motor-1', 'motor-2']);
 });
 
-test('catalog default sorting follows the admin sort order', () => {
+test('catalog follows the admin brand order without promoting bestseller motors', () => {
   const motors = [
     {
       id: 'motor-2',
@@ -54,6 +54,7 @@ test('catalog default sorting follows the admin sort order', () => {
       specs: ['125cc'],
       image: '',
       sort_order: 2,
+      is_bestseller: true,
       numericPrice: 22000000,
       price: 'Rp 22.000.000',
     },
@@ -68,8 +69,19 @@ test('catalog default sorting follows the admin sort order', () => {
       numericPrice: 18000000,
       price: 'Rp 18.000.000',
     },
+    {
+      id: 'motor-3',
+      name: 'CB150R',
+      category: 'Sport',
+      description: 'Motor sport Honda.',
+      specs: ['150cc'],
+      image: '',
+      sort_order: 1,
+      numericPrice: 30000000,
+      price: 'Rp 30.000.000',
+    },
   ] as any;
 
   const filtered = filterCatalogMotors(motors, 'Semua', '', 'default');
-  assert.deepEqual(filtered.map((motor) => motor.id), ['motor-1', 'motor-2']);
+  assert.deepEqual(filtered.map((motor) => motor.id), ['motor-1', 'motor-2', 'motor-3']);
 });

@@ -40,7 +40,7 @@ export function filterCatalogMotors(
   motors: Motor[],
   activeCategory: string,
   searchQuery: string,
-  sortBy: 'default' | 'price-asc' | 'price-desc' | 'bestseller' = 'default',
+  sortBy: 'default' | 'price-asc' | 'price-desc' = 'default',
 ) {
   return motors
     .filter((motor) => {
@@ -57,12 +57,10 @@ export function filterCatalogMotors(
 
       if (sortBy === 'price-asc') return priceA - priceB;
       if (sortBy === 'price-desc') return priceB - priceA;
+      const categoryOrder = a.category.localeCompare(b.category, 'id');
+      if (categoryOrder !== 0) return categoryOrder;
       const orderA = Number.isFinite(a.sort_order) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
       const orderB = Number.isFinite(b.sort_order) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
-      if (sortBy === 'bestseller') {
-        const bestsellerDiff = (b.is_bestseller ? 1 : 0) - (a.is_bestseller ? 1 : 0);
-        if (bestsellerDiff !== 0) return bestsellerDiff;
-      }
       return orderA - orderB;
     });
 }
@@ -196,7 +194,7 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'bestseller'>('default');
+  const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc'>('default');
   const [selectedGallery, setSelectedGallery] = useState<{ images: string[]; index: number; alt: string } | null>(null);
   const galleryTouchStartX = useRef<number | null>(null);
 
@@ -311,8 +309,7 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({
                 onChange={(e) => setSortBy(e.target.value as any)}
                 className="bg-zinc-900 border border-white/10 rounded-xl text-xs text-zinc-300 py-2.5 px-3 focus:outline-none focus:border-red-500"
               >
-                <option value="default">Paling Relevan</option>
-                <option value="bestseller">🔥 Terlaris / Bestseller</option>
+                <option value="default">Urutan katalog</option>
                 <option value="price-asc">Harga Terendah</option>
                 <option value="price-desc">Harga Tertinggi</option>
               </select>

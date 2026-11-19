@@ -3408,7 +3408,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                         </label>
                       ))}
                     </div>
-                    <p className="mt-2 text-[11px] text-zinc-500">Kosongkan jika ingin memakai akun sosial Honda bawaan.</p>
+                    <p className="mt-2 text-[11px] text-zinc-500">Link sosial lain dapat dikosongkan untuk memakai akun bawaan. TikTok hanya tampil jika URL profilnya diisi.</p>
                     </div>
                   </details>
                   </>
@@ -3432,6 +3432,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           </label>
                         ))}
                       </div>
+                      <p className="mt-2 text-[11px] text-zinc-500">Isi URL profil TikTok lalu simpan agar ikon TikTok tampil di website.</p>
                       <button type="button" onClick={() => settings && void handleSaveSettings({ preventDefault: () => {} } as React.FormEvent)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-red-500">
                         <Save className="h-4 w-4" /> Simpan Media Sosial
                       </button>
