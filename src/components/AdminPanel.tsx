@@ -62,7 +62,7 @@ import {
 } from '../catalogAnimation';
 import { createWhatsAppUrl, normalizeWhatsAppNumber } from '../utils/whatsapp';
 import { getSeoLandingPosts, getSeoLandingPostPath, slugifySeoPost } from '../utils/seoPosts';
-import { getSiteSeoFocusKeyword, getSiteSeoKeywords } from '../utils/seoKeywords';
+import { combineSeoKeywords, generateDealerSeoKeywords, getSiteSeoFocusKeyword, getSiteSeoKeywords, MAX_SEO_KEYWORDS_LENGTH } from '../utils/seoKeywords';
 import { CustomizationPanel } from './CustomizationPanel';
 import { ArticleManager } from './ArticleManager';
 
@@ -1211,7 +1211,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const seoTitle = settings?.seoTitle || DEFAULT_SEO_TITLE;
   const seoDescription = normalizeSeoDescription(settings?.seoDescription || DEFAULT_SEO_DESCRIPTION);
   const seoFocusKeyword = getSiteSeoFocusKeyword(window.location.hostname, settings?.seoFocusKeyword, DEFAULT_SEO_FOCUS_KEYWORD);
-  const seoKeywords = getSiteSeoKeywords(window.location.hostname, settings?.seoKeywords, DEFAULT_SEO_KEYWORDS);
+  const seoKeywords = getSiteSeoKeywords(
+    window.location.hostname,
+    settings?.seoKeywords,
+    DEFAULT_SEO_KEYWORDS,
+    settings?.name,
+    settings?.seoPostHost ? settings.seoPages?.[0]?.siteType || 'dealer' : 'dealer',
+  );
   const seoCanonicalUrl = settings?.seoCanonicalUrl || DEFAULT_SEO_CANONICAL_URL;
   const seoRobots = settings?.seoRobots || DEFAULT_SEO_ROBOTS;
   const focusKeywordMatch = matchFocusKeyword(seoFocusKeyword, seoTitle, seoDescription);
@@ -1636,8 +1642,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     const content = seoPageEditor.content.trim();
     const seoTitle = (seoPageEditor.seoTitle || title).trim();
     const seoDescription = (seoPageEditor.seoDescription || '').trim();
-    const seoFocusKeyword = (seoPageEditor.seoFocusKeyword || '').trim();
-    const seoKeywords = (seoPageEditor.seoKeywords || '').trim();
+    const seoFocusKeyword = (seoPageEditor.seoFocusKeyword || seoTitle || title).trim();
+    const seoKeywords = combineSeoKeywords(
+      generateDealerSeoKeywords(seoTitle || title, isPosSuperAdmin ? 'pos' : 'dealer'),
+      (seoPageEditor.seoKeywords || '').trim(),
+    ).slice(0, MAX_SEO_KEYWORDS_LENGTH);
     const seoRobots = seoPageEditor.seoRobots || 'index, follow';
     if (!title || !content || !subdomain || !slug || !seoTitle) {
       alert('Subdomain SEO, judul SEO, judul pos, dan isi post wajib diisi.');
@@ -1755,6 +1764,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
 
     const existingPage = currentPages.find((page) => page.id === seoSubdomainEditor.id);
     const now = new Date().toISOString();
+    const pageName = seoSubdomainEditor.title.trim() || seoTitle;
+    const seoKeywords = combineSeoKeywords(
+      generateDealerSeoKeywords(pageName, isPosSuperAdmin ? 'pos' : 'dealer'),
+      seoSubdomainEditor.seoKeywords,
+    ).slice(0, MAX_SEO_KEYWORDS_LENGTH);
     const page: SeoLandingPage = {
       ...seoSubdomainEditor,
       id: existingPage?.id || `seo-page-${Date.now()}`,
@@ -1766,8 +1780,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
       content: existingPage?.content || '',
       seoTitle,
       seoDescription: seoSubdomainEditor.seoDescription.trim(),
-      seoFocusKeyword: (seoSubdomainEditor.seoFocusKeyword || '').trim(),
-      seoKeywords: seoSubdomainEditor.seoKeywords.trim(),
+      seoFocusKeyword: (seoSubdomainEditor.seoFocusKeyword || pageName).trim(),
+      seoKeywords,
       seoRobots: seoSubdomainEditor.seoRobots || 'index, follow',
       updated_at: now,
     };
@@ -2627,7 +2641,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                     <input maxLength={70} value={salesCounterForm.seoTitle} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoTitle: event.target.value })} placeholder="Judul SEO (opsional, maks. 70 karakter)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                             <textarea maxLength={200} rows={2} value={salesCounterForm.seoDescription} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoDescription: event.target.value })} placeholder="Deskripsi SEO (opsional, maks. 200 karakter)" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
                     <input maxLength={120} value={salesCounterForm.seoFocusKeyword} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoFocusKeyword: event.target.value })} placeholder="Focus keyword khusus website ini" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
-                    <input maxLength={300} value={salesCounterForm.seoKeywords} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoKeywords: event.target.value })} placeholder="Kata kunci tambahan, pisahkan dengan koma" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none" />
+                    <textarea maxLength={MAX_SEO_KEYWORDS_LENGTH} rows={3} value={salesCounterForm.seoKeywords} onChange={(event) => setSalesCounterForm({ ...salesCounterForm, seoKeywords: event.target.value })} placeholder="Kata kunci tambahan, pisahkan dengan koma" className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:border-red-500 focus:outline-none sm:col-span-2 xl:col-span-3" />
+                    <p className="text-[11px] text-zinc-500 sm:col-span-2 xl:col-span-3">100 keyword terkurasi untuk Bandung dan Jawa Barat akan dibuat otomatis; kata kunci tambahan tetap bisa diisi. Estimasi ini bukan data volume Google Trends.</p>
                     <button type="submit" disabled={isSavingSalesCounter} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-500 disabled:cursor-wait disabled:opacity-60">
                       <Plus className="h-4 w-4" />
                       {isSavingSalesCounter ? 'Membuat website...' : isPosSuperAdmin ? 'Tambah POS' : 'Tambah Sales Counter'}
@@ -2665,7 +2680,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                             <textarea required maxLength={200} rows={3} value={salesCounterSeoForm.seoDescription} onChange={(event) => setSalesCounterSeoForm({ ...salesCounterSeoForm, seoDescription: event.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" />
                           </label>
                           <label className="space-y-1 text-xs font-medium text-zinc-300 sm:col-span-2">Kata kunci tambahan
-                            <input maxLength={300} value={salesCounterSeoForm.seoKeywords} onChange={(event) => setSalesCounterSeoForm({ ...salesCounterSeoForm, seoKeywords: event.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" />
+                            <textarea maxLength={MAX_SEO_KEYWORDS_LENGTH} rows={4} value={salesCounterSeoForm.seoKeywords} onChange={(event) => setSalesCounterSeoForm({ ...salesCounterSeoForm, seoKeywords: event.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" />
                           </label>
                           <label className="space-y-1 text-xs font-medium text-zinc-300 sm:col-span-2">Focus keyword
                             <input maxLength={120} value={salesCounterSeoForm.seoFocusKeyword} onChange={(event) => setSalesCounterSeoForm({ ...salesCounterSeoForm, seoFocusKeyword: event.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" />
@@ -3838,8 +3853,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                         </label>
                         <label className="block space-y-1.5 text-xs font-medium text-zinc-300">
                           Kata kunci tambahan
-                          <input value={seoKeywords} onChange={(event) => setSettings({ ...settings, seoKeywords: event.target.value })} maxLength={500} className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Pisahkan kata kunci dengan koma" />
-                          <span className="block text-[11px] text-zinc-500">Google tidak menggunakan meta keywords sebagai faktor ranking. Masukkan variasi kata kunci secara alami ke konten dan judul section halaman.</span>
+                          <textarea value={seoKeywords} onChange={(event) => setSettings({ ...settings, seoKeywords: event.target.value })} maxLength={MAX_SEO_KEYWORDS_LENGTH} rows={4} className="w-full resize-y rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Pisahkan kata kunci dengan koma" />
+                          <span className="block text-[11px] text-zinc-500">100 keyword terkurasi untuk Bandung dan Jawa Barat disertakan otomatis. Pencarian focus keyword di panel tetap aktif. Google tidak memakai meta keywords sebagai faktor ranking; masukkan variasi kata kunci secara alami ke konten.</span>
                         </label>
                       </div>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -3953,7 +3968,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <label className="space-y-1 text-xs font-medium text-zinc-300">SEO title<input value={seoSubdomainEditor.seoTitle} onChange={(event) => setSeoSubdomainEditor({ ...seoSubdomainEditor, seoTitle: event.target.value, ...(!seoSubdomainEditor.content.trim() ? { title: event.target.value } : {}) })} maxLength={70} className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Judul yang tampil di Google" /></label>
                             <label className="space-y-1 text-xs font-medium text-zinc-300">Focus keyword<input value={seoSubdomainEditor.seoFocusKeyword || ''} onChange={(event) => setSeoSubdomainEditor({ ...seoSubdomainEditor, seoFocusKeyword: event.target.value })} maxLength={120} className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Kata kunci utama untuk website ini" /></label>
-                            <label className="space-y-1 text-xs font-medium text-zinc-300">Kata kunci tambahan<input value={seoSubdomainEditor.seoKeywords} onChange={(event) => setSeoSubdomainEditor({ ...seoSubdomainEditor, seoKeywords: event.target.value })} maxLength={300} className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Pisahkan dengan koma" /></label>
+                            <label className="space-y-1 text-xs font-medium text-zinc-300">Kata kunci tambahan<textarea value={seoSubdomainEditor.seoKeywords} onChange={(event) => setSeoSubdomainEditor({ ...seoSubdomainEditor, seoKeywords: event.target.value })} maxLength={MAX_SEO_KEYWORDS_LENGTH} rows={4} className="w-full resize-y rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="100 keyword terkurasi otomatis; kata kunci tambahan pisahkan dengan koma" /></label>
                           </div>
                           <label className="block space-y-1 text-xs font-medium text-zinc-300">SEO description<textarea value={seoSubdomainEditor.seoDescription} onChange={(event) => setSeoSubdomainEditor({ ...seoSubdomainEditor, seoDescription: event.target.value })} rows={3} maxLength={200} className="w-full resize-y rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Ringkasan untuk hasil pencarian" /></label>
                           <label className="block max-w-xs space-y-1 text-xs font-medium text-zinc-300">Robots<select value={seoSubdomainEditor.seoRobots || 'index, follow'} onChange={(event) => setSeoSubdomainEditor({ ...seoSubdomainEditor, seoRobots: event.target.value })} className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none"><option value="index, follow">Index, follow</option><option value="noindex, follow">Noindex, follow</option></select></label>
@@ -4046,7 +4061,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <label className="block space-y-1 text-xs font-medium text-zinc-300">
                               Kata kunci tambahan
-                              <input value={seoPageEditor.seoKeywords || ''} onChange={(event) => setSeoPageEditor({ ...seoPageEditor, seoKeywords: event.target.value })} maxLength={300} className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="Pisahkan dengan koma" />
+                              <textarea value={seoPageEditor.seoKeywords || ''} onChange={(event) => setSeoPageEditor({ ...seoPageEditor, seoKeywords: event.target.value })} maxLength={MAX_SEO_KEYWORDS_LENGTH} rows={4} className="w-full resize-y rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none" placeholder="100 keyword terkurasi otomatis; kata kunci tambahan pisahkan dengan koma" />
                             </label>
                             <label className="block space-y-1 text-xs font-medium text-zinc-300">
                               Robots

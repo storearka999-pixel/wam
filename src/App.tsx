@@ -511,9 +511,13 @@ export default function App() {
     const siteFocusKeyword = hostSeoPage
       ? hostSeoPage.seoFocusKeyword
       : getSiteSeoFocusKeyword(window.location.hostname, settings.seoFocusKeyword, DEFAULT_SEO_FOCUS_KEYWORD);
-    const siteKeywords = hostSeoPage
-      ? hostSeoPage.seoKeywords
-      : getSiteSeoKeywords(window.location.hostname, settings.seoKeywords, DEFAULT_SEO_KEYWORDS);
+    const siteKeywords = getSiteSeoKeywords(
+      window.location.hostname,
+      hostSeoPage?.seoKeywords || settings.seoKeywords,
+      DEFAULT_SEO_KEYWORDS,
+      settings.name || hostSeoPage?.title,
+      hostSeoPage?.siteType || 'dealer',
+    );
     const pageKeywords = activeArticle
       ? activeArticle.seoKeywords || [activeArticle.title, activeArticle.category].filter(Boolean).join(', ')
       : hostSeoPage ? hostSeoPage.seoKeywords : activeLandingSeo?.keywords;

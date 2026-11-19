@@ -13,7 +13,7 @@ import * as XLSX from 'xlsx';
 import { DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_FOCUS_KEYWORD, DEFAULT_SEO_KEYWORDS, DEFAULT_SEO_TITLE, MAX_ARTICLE_VIDEO_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_BYTES, MAX_MOTOR_IMAGES, MAX_PROMO_IMAGES } from './src/constants';
 import { DEFAULT_CATALOG_ANIMATION, isCatalogAnimation, normalizeCatalogAnimationSpeed } from './src/catalogAnimation';
 import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from './src/utils/seoPosts';
-import { combineSeoKeywords, getSiteSeoFocusKeyword, getSiteSeoKeywords } from './src/utils/seoKeywords';
+import { combineSeoKeywords, generateDealerSeoKeywords, getSiteSeoFocusKeyword, getSiteSeoKeywords, MAX_SEO_KEYWORDS_LENGTH } from './src/utils/seoKeywords';
 import { canManageArticle } from './src/utils/articleOwnership';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -585,9 +585,13 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
   const siteFocusKeyword = hostPage
     ? pageSettings.seoFocusKeyword
     : getSiteSeoFocusKeyword(hostname, pageSettings.seoFocusKeyword, DEFAULT_SEO_FOCUS_KEYWORD);
-  const siteKeywords = hostPage
-    ? hostPage.seoKeywords
-    : getSiteSeoKeywords(hostname, pageSettings.seoKeywords, DEFAULT_SEO_KEYWORDS);
+  const siteKeywords = getSiteSeoKeywords(
+    hostname,
+    hostPage?.seoKeywords || pageSettings.seoKeywords,
+    DEFAULT_SEO_KEYWORDS,
+    hostPage?.siteSettings?.name || hostPage?.title,
+    hostPage?.siteType || 'dealer',
+  );
   const pageKeywords = article
     ? article.seoKeywords || [article.title, article.category].filter(Boolean).join(', ')
     : hostPage ? hostPage.seoKeywords : page?.keywords;
@@ -2144,6 +2148,11 @@ function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPa
       });
     }
 
+    const pageTitle = String(rawPage.title || rawPage.seoTitle || existing?.title || subdomain).trim().slice(0, 120);
+    const pageKeywords = combineSeoKeywords(
+      generateDealerSeoKeywords(pageTitle),
+      String(rawPage.seoKeywords ?? existing?.seoKeywords ?? '').trim().slice(0, MAX_SEO_KEYWORDS_LENGTH),
+    ).slice(0, MAX_SEO_KEYWORDS_LENGTH);
     normalizedChildren.push({
       ...(existing || {}),
       id,
@@ -2152,12 +2161,12 @@ function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPa
       parentSeoPageId: posPage.id,
       ...(existing?.siteType === 'sales-counter' ? { siteType: 'sales-counter' } : { siteType: undefined }),
       adminUserId: existing?.adminUserId || session.id,
-      title: String(rawPage.title || rawPage.seoTitle || existing?.title || subdomain).trim().slice(0, 120),
+      title: pageTitle,
       content: String(rawPage.content ?? existing?.content ?? '').trim(),
       seoTitle: String(rawPage.seoTitle || rawPage.title || existing?.seoTitle || '').trim().slice(0, 70),
       seoDescription: String(rawPage.seoDescription ?? existing?.seoDescription ?? '').trim().slice(0, 200),
-      seoFocusKeyword: String(rawPage.seoFocusKeyword ?? existing?.seoFocusKeyword ?? '').trim().slice(0, 120),
-      seoKeywords: String(rawPage.seoKeywords ?? existing?.seoKeywords ?? '').trim().slice(0, 300),
+      seoFocusKeyword: String(rawPage.seoFocusKeyword ?? existing?.seoFocusKeyword ?? pageTitle).trim().slice(0, 120),
+      seoKeywords: pageKeywords,
       seoRobots: ['index, follow', 'noindex, follow', 'index, nofollow', 'noindex, nofollow'].includes(rawPage.seoRobots)
         ? rawPage.seoRobots
         : existing?.seoRobots || 'index, follow',
@@ -2663,7 +2672,13 @@ async function startServer() {
         ...(typeof settingsUpdates.seoTitle === 'string' ? { seoTitle: settingsUpdates.seoTitle.trim() } : {}),
         ...(typeof settingsUpdates.seoDescription === 'string' ? { seoDescription: settingsUpdates.seoDescription.trim() } : {}),
         ...(typeof settingsUpdates.seoFocusKeyword === 'string' ? { seoFocusKeyword: settingsUpdates.seoFocusKeyword.trim().slice(0, 120) } : {}),
-        ...(typeof settingsUpdates.seoKeywords === 'string' ? { seoKeywords: settingsUpdates.seoKeywords.trim() } : {}),
+        seoKeywords: getSiteSeoKeywords(
+          host,
+          typeof settingsUpdates.seoKeywords === 'string' ? settingsUpdates.seoKeywords : hostPage.seoKeywords,
+          DEFAULT_SEO_KEYWORDS,
+          siteSettings.name || hostPage.title,
+          hostPage.siteType || 'dealer',
+        ).slice(0, MAX_SEO_KEYWORDS_LENGTH),
         ...(typeof settingsUpdates.seoRobots === 'string' ? { seoRobots: settingsUpdates.seoRobots } : {}),
         updated_at: new Date().toISOString(),
       };
@@ -4159,20 +4174,27 @@ async function startServer() {
     const users = ensureAdminUsers(db);
     res.json(pages.map((page: any) => {
       const user = users.find((item: any) => item.id === page.adminUserId);
+      const name = page.siteSettings?.name || page.title || page.subdomain;
       return {
         id: page.id,
         siteType: page.siteType || 'sales-counter',
         parentSeoPageId: page.parentSeoPageId || null,
         subdomain: page.subdomain,
         domainSuffix,
-        name: page.siteSettings?.name || page.title || page.subdomain,
+        name,
         phone: page.siteSettings?.phone || '',
         username: user?.username || '',
         adminUserId: page.adminUserId,
         seoTitle: page.seoTitle || '',
         seoDescription: page.seoDescription || '',
-        seoFocusKeyword: page.seoFocusKeyword || '',
-        seoKeywords: page.seoKeywords || '',
+        seoFocusKeyword: page.seoFocusKeyword || `${name} Honda Bandung`,
+        seoKeywords: getSiteSeoKeywords(
+          `${page.subdomain}.${domainSuffix}`,
+          page.seoKeywords,
+          DEFAULT_SEO_KEYWORDS,
+          name,
+          page.siteType || 'sales-counter',
+        ).slice(0, MAX_SEO_KEYWORDS_LENGTH),
         seoRobots: page.seoRobots || 'index, follow',
         sslStatus: page.sslStatus || 'pending',
         sslError: page.sslError,
@@ -4193,8 +4215,15 @@ async function startServer() {
 
     page.seoTitle = String(req.body?.seoTitle || '').trim().slice(0, 70);
     page.seoDescription = String(req.body?.seoDescription || '').trim().slice(0, 200);
-    page.seoFocusKeyword = String(req.body?.seoFocusKeyword || '').trim().slice(0, 120);
-    page.seoKeywords = String(req.body?.seoKeywords || '').trim().slice(0, 300);
+    const siteName = page.siteSettings?.name || page.title || page.subdomain;
+    page.seoFocusKeyword = String(req.body?.seoFocusKeyword || `${siteName} Honda Bandung`).trim().slice(0, 120);
+    page.seoKeywords = getSiteSeoKeywords(
+      `${page.subdomain}.${domainSuffix}`,
+      String(req.body?.seoKeywords || '').trim().slice(0, MAX_SEO_KEYWORDS_LENGTH),
+      DEFAULT_SEO_KEYWORDS,
+      siteName,
+      page.siteType || 'sales-counter',
+    ).slice(0, MAX_SEO_KEYWORDS_LENGTH);
     page.seoRobots = ['index, follow', 'noindex, follow', 'index, nofollow', 'noindex, nofollow']
       .includes(req.body?.seoRobots) ? req.body.seoRobots : 'index, follow';
     page.updated_at = new Date().toISOString();
@@ -4232,7 +4261,7 @@ async function startServer() {
     const seoTitle = String(req.body?.seoTitle || '').trim().slice(0, 70);
     const seoDescription = String(req.body?.seoDescription || '').trim().slice(0, 200);
     const seoFocusKeyword = String(req.body?.seoFocusKeyword || '').trim().slice(0, 120);
-    const seoKeywords = String(req.body?.seoKeywords || '').trim().slice(0, 300);
+    const seoKeywords = String(req.body?.seoKeywords || '').trim().slice(0, MAX_SEO_KEYWORDS_LENGTH);
     const reservedSubdomains = new Set([...RESERVED_SEO_SUBDOMAINS, 'kreditmotorhonda', 'solusi', 'sales']);
 
     if (!name || !username || password.length < 8 || phone.length < 8) {
@@ -4263,10 +4292,13 @@ async function startServer() {
       adminUserId,
       title: `${name} | ${siteType === 'pos' ? 'POS' : 'Sales Counter'} Honda`,
       content: '',
-      seoTitle: seoTitle || `${name} | Sales Counter Honda Bandung`.slice(0, 70),
-      seoDescription: seoDescription || `Hubungi ${name}, Sales Counter Honda Bandung. Konsultasi motor, harga, promo, dan simulasi kredit Honda melalui WhatsApp.`.slice(0, 200),
-      seoFocusKeyword: seoFocusKeyword || name.slice(0, 120),
-      seoKeywords: seoKeywords || `${name}, sales Honda Bandung, kredit motor Honda Bandung`.slice(0, 300),
+      seoTitle: seoTitle || `${name} | ${siteType === 'pos' ? 'POS' : 'Sales Counter'} Honda Bandung`.slice(0, 70),
+      seoDescription: seoDescription || `Hubungi ${name}, ${siteType === 'pos' ? 'POS' : 'Sales Counter'} Honda Bandung. Konsultasi motor, harga, promo, dan simulasi kredit melalui WhatsApp.`.slice(0, 200),
+      seoFocusKeyword: seoFocusKeyword || `${name} ${siteType === 'pos' ? 'POS' : 'Sales Counter'} Honda Bandung`.slice(0, 120),
+      seoKeywords: combineSeoKeywords(
+        generateDealerSeoKeywords(name, siteType),
+        seoKeywords,
+      ).slice(0, MAX_SEO_KEYWORDS_LENGTH),
       seoRobots: 'index, follow',
       siteSettings: {
         name,
