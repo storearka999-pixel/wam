@@ -4528,7 +4528,7 @@ async function startServer() {
         if (normalizeAdminHost(req.hostname) === 'kreditmotorhonda.tech') {
           const staticSeoPagePath = path.join(
             distPath,
-            req.path.replace(/^\\/+|\\/+$/g, ''),
+            req.path.replace(/^\/+|\/+$/g, ''),
             'index.html'
           );
           if (fs.existsSync(staticSeoPagePath)) {
@@ -4582,7 +4582,7 @@ async function startServer() {
       // The primary .tech site has a defined set of public routes. Do not
       // return the SPA shell with HTTP 200 for arbitrary, nonexistent URLs.
       if (normalizeAdminHost(req.hostname) === 'kreditmotorhonda.tech') {
-        const normalizedPath = req.path.replace(/\\/+$/, '') || '/';
+        const normalizedPath = req.path.replace(/\/+$/, '') || '/';
         const knownLandingPaths = new Set([
           '/',
           '/dealer-honda-bandung',
