@@ -19,6 +19,7 @@ import { DEFAULT_CATALOG_ANIMATION, DEFAULT_CATALOG_ANIMATION_SPEED } from './ca
 import { DEFAULT_FEATURED_MOTOR_ROTATION_INTERVAL, DEFAULT_SEO_CANONICAL_URL, DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_KEYWORDS, DEFAULT_SEO_ROBOTS, DEFAULT_SEO_TITLE, HONDA_WIJAYA_COLOR_PALETTES, WIJAYA_ENERJIK_COLOR_PALETTES } from './constants';
 import { createWhatsAppUrl, trackWhatsAppClick } from './utils/whatsapp';
 import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from './utils/seoPosts';
+import { combineSeoKeywords } from './utils/seoKeywords';
 
 const AdminPanel = lazy(() => import('./components/AdminPanel').then(({ AdminPanel: panel }) => ({ default: panel })));
 
@@ -497,15 +498,25 @@ export default function App() {
       ? hostSeoPost.title
       : activeArticle
         ? `${activeArticle.title} | ${settings.name || 'Honda Wijaya Abadi'}`
-        : hostSeoPage?.seoTitle?.trim() || activeLandingSeo?.title || settings.seoTitle?.trim() || DEFAULT_SEO_TITLE;
+        : hostSeoPage
+          ? hostSeoPage.seoTitle?.trim() || hostSeoPage.title
+          : activeLandingSeo?.title || settings.seoTitle?.trim() || DEFAULT_SEO_TITLE;
     const description = hostSeoPost && hostSeoPost.id !== hostSeoPage?.id
       ? hostSeoPost.content.trim().slice(0, 160)
       : activeArticle
         ? activeArticle.excerpt || activeArticle.content.trim().slice(0, 160)
-        : hostSeoPage?.seoDescription?.trim() || activeLandingSeo?.description || settings.seoDescription?.trim() || DEFAULT_SEO_DESCRIPTION;
-    const keywords = activeArticle
-      ? [activeArticle.title, activeArticle.category, settings.seoKeywords].filter(Boolean).join(', ')
-      : hostSeoPage?.seoKeywords?.trim() || activeLandingSeo?.keywords || settings.seoKeywords?.trim() || DEFAULT_SEO_KEYWORDS;
+        : hostSeoPage
+          ? hostSeoPage.seoDescription?.trim() || hostSeoPage.content.trim().slice(0, 160) || DEFAULT_SEO_DESCRIPTION
+          : activeLandingSeo?.description || settings.seoDescription?.trim() || DEFAULT_SEO_DESCRIPTION;
+    const keywordSource = activeArticle
+      ? activeArticle.seoKeywords || [activeArticle.title, activeArticle.category, settings.seoKeywords].filter(Boolean).join(', ')
+      : hostSeoPage
+        ? hostSeoPage.seoKeywords?.trim() || ''
+        : activeLandingSeo?.keywords || settings.seoKeywords?.trim() || DEFAULT_SEO_KEYWORDS;
+    const keywords = combineSeoKeywords(
+      hostSeoPage ? hostSeoPage.seoFocusKeyword : settings.seoFocusKeyword,
+      keywordSource,
+    );
     const canonicalPath = currentPath === '/' ? '/' : `${currentPath}/`;
     const canonicalUrl = hostSeoPage
       ? `${currentSeoOrigin}${hostSeoPost ? getSeoLandingPostPath(hostSeoPage, hostSeoPost) : '/'}`
@@ -550,7 +561,7 @@ export default function App() {
       document.head.appendChild(canonical);
     }
     canonical.href = canonicalUrl;
-  }, [isAdminOpen, articles, settings.name, settings.seoCanonicalUrl, settings.seoDescription, settings.seoKeywords, settings.seoRobots, settings.seoTitle, currentPath, currentSeoOrigin, seoRootDomain, hostSeoPage, hostSeoPost]);
+  }, [isAdminOpen, articles, settings.name, settings.seoCanonicalUrl, settings.seoDescription, settings.seoFocusKeyword, settings.seoKeywords, settings.seoRobots, settings.seoTitle, currentPath, currentSeoOrigin, seoRootDomain, hostSeoPage, hostSeoPost]);
 
   // Comparison toggle handler
   const handleToggleCompare = (motor: Motor) => {

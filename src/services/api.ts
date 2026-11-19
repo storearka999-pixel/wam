@@ -86,7 +86,7 @@ export const api = {
     return result;
   },
 
-  async createSalesCounter(data: { siteType?: 'pos' | 'sales-counter'; name: string; phone: string; username: string; password: string; subdomain: string; seoTitle?: string; seoDescription?: string; seoKeywords?: string; seoRobots?: string }): Promise<SalesCounterSite> {
+  async createSalesCounter(data: { siteType?: 'pos' | 'sales-counter'; name: string; phone: string; username: string; password: string; subdomain: string; seoTitle?: string; seoDescription?: string; seoFocusKeyword?: string; seoKeywords?: string; seoRobots?: string }): Promise<SalesCounterSite> {
     const res = await fetch('/api/admin/sales-counters', {
       method: 'POST',
       headers: adminHeaders(),
@@ -106,7 +106,7 @@ export const api = {
     if (!res.ok) throw new Error(result.error || 'Gagal menghapus Sales Counter');
   },
 
-  async updateSalesCounterSeo(id: string, data: Pick<SalesCounterSite, 'seoTitle' | 'seoDescription' | 'seoKeywords' | 'seoRobots'>): Promise<Pick<SalesCounterSite, 'id' | 'seoTitle' | 'seoDescription' | 'seoKeywords' | 'seoRobots' | 'updated_at'>> {
+  async updateSalesCounterSeo(id: string, data: Pick<SalesCounterSite, 'seoTitle' | 'seoDescription' | 'seoFocusKeyword' | 'seoKeywords' | 'seoRobots'>): Promise<Pick<SalesCounterSite, 'id' | 'seoTitle' | 'seoDescription' | 'seoFocusKeyword' | 'seoKeywords' | 'seoRobots' | 'updated_at'>> {
     const res = await fetch(`/api/admin/sales-counters/${encodeURIComponent(id)}/seo`, {
       method: 'PUT',
       headers: adminHeaders(),

@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx';
 import { DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_TITLE, MAX_ARTICLE_VIDEO_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_BYTES, MAX_MOTOR_IMAGES, MAX_PROMO_IMAGES } from './src/constants';
 import { DEFAULT_CATALOG_ANIMATION, isCatalogAnimation, normalizeCatalogAnimationSpeed } from './src/catalogAnimation';
 import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from './src/utils/seoPosts';
+import { combineSeoKeywords } from './src/utils/seoKeywords';
 import { canManageArticle } from './src/utils/articleOwnership';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -576,10 +577,17 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
     : isHostPost ? hostPost?.title : hostPage?.seoTitle || hostPage?.title || page?.title || pageSettings.seoTitle || DEFAULT_SEO_TITLE).trim();
   const description = String(article
     ? article.seoDescription || article.excerpt || article.content.trim().slice(0, 160)
-    : isHostPost ? hostPost?.content.trim().slice(0, 160) : hostPage?.seoDescription || page?.description || pageSettings.seoDescription || DEFAULT_SEO_DESCRIPTION).trim();
-  const keywords = String(article
+    : isHostPost
+      ? hostPost?.content.trim().slice(0, 160)
+      : hostPage
+        ? hostPage.seoDescription || hostPage.content.trim().slice(0, 160) || DEFAULT_SEO_DESCRIPTION
+        : page?.description || pageSettings.seoDescription || DEFAULT_SEO_DESCRIPTION).trim();
+  const keywordSource = String(article
     ? article.seoKeywords || [article.title, article.category, pageSettings.seoKeywords].filter(Boolean).join(', ')
-    : hostPage?.seoKeywords || page?.keywords || pageSettings.seoKeywords || 'dealer motor Honda Bandung, harga motor Honda Bandung, kredit motor Honda Bandung, simulasi kredit Honda, promo motor Honda Bandung, DP motor Honda, tenor motor Honda, Honda Beat Bandung, Honda Scoopy Bandung, Honda Vario Bandung, Honda PCX Bandung, Honda ADV Bandung, dealer Honda Bandung, Honda Wijaya Abadi Mulia Motor').trim();
+    : hostPage
+      ? hostPage.seoKeywords || ''
+      : page?.keywords || pageSettings.seoKeywords || 'dealer motor Honda Bandung, harga motor Honda Bandung, kredit motor Honda Bandung, simulasi kredit Honda, promo motor Honda Bandung, DP motor Honda, tenor motor Honda, Honda Beat Bandung, Honda Scoopy Bandung, Honda Vario Bandung, Honda PCX Bandung, Honda ADV Bandung, dealer Honda Bandung, Honda Wijaya Abadi Mulia Motor').trim();
+  const keywords = combineSeoKeywords(pageSettings.seoFocusKeyword, keywordSource);
   const normalizedHostname = normalizeAnalyticsHost(hostname);
   const isRootSiteHost = SALES_COUNTER_ROOT_DOMAINS.has(normalizedHostname)
     || normalizedHostname === 'wijaya.kreditmotorhonda.tech';
@@ -1299,6 +1307,7 @@ function publicSeoPage(page: any) {
     })),
     seoTitle: page.seoTitle,
     seoDescription: page.seoDescription,
+    seoFocusKeyword: page.seoFocusKeyword || '',
     seoKeywords: page.seoKeywords,
     seoRobots: page.seoRobots,
     sslStatus: page.sslStatus,
@@ -1320,8 +1329,9 @@ function getSettingsForSeoPage(settings: any = {}, page: any) {
     ...settings,
     ...(page.siteSettings || {}),
     seoTitle: page.seoTitle || page.title || settings.seoTitle,
-    seoDescription: page.seoDescription || settings.seoDescription,
-    seoKeywords: page.seoKeywords || settings.seoKeywords,
+    seoDescription: page.seoDescription || '',
+    seoFocusKeyword: page.seoFocusKeyword || '',
+    seoKeywords: page.seoKeywords || '',
     seoRobots: page.sslStatus === 'active' ? page.seoRobots || 'index, follow' : 'noindex, follow',
     seoCanonicalUrl: `${getSeoPageOrigin(page)}/`,
     seoPages: [publicSeoPage(page)],
@@ -2142,6 +2152,7 @@ function updatePosChildSeoPages(db: any, posPage: any, session: any, requestedPa
       content: String(rawPage.content ?? existing?.content ?? '').trim(),
       seoTitle: String(rawPage.seoTitle || rawPage.title || existing?.seoTitle || '').trim().slice(0, 70),
       seoDescription: String(rawPage.seoDescription ?? existing?.seoDescription ?? '').trim().slice(0, 200),
+      seoFocusKeyword: String(rawPage.seoFocusKeyword ?? existing?.seoFocusKeyword ?? '').trim().slice(0, 120),
       seoKeywords: String(rawPage.seoKeywords ?? existing?.seoKeywords ?? '').trim().slice(0, 300),
       seoRobots: ['index, follow', 'noindex, follow', 'index, nofollow', 'noindex, nofollow'].includes(rawPage.seoRobots)
         ? rawPage.seoRobots
@@ -2586,7 +2597,7 @@ async function startServer() {
         'name', 'tagline', 'phone', 'address', 'email', 'workingHours', 'logo', 'heroImage', 'heroImages',
         'heroTitle', 'heroMainTitle', 'heroTitleHighlight', 'heroSubtitle', 'heroBadge', 'heroCaption', 'footerText',
         'websiteTemplate', 'catalogAnimation', 'catalogAnimationSpeed', 'customization', 'seoCanonicalUrl',
-        ...(isPosAdmin ? ['seoTitle', 'seoDescription', 'seoKeywords', 'seoRobots'] : []),
+        ...(isPosAdmin ? ['seoTitle', 'seoDescription', 'seoFocusKeyword', 'seoKeywords', 'seoRobots'] : []),
       ]);
       for (const key of Object.keys(settingsUpdates)) {
         if (!editableFields.has(key) && !(isPosAdmin && key === 'seoPages' && hostPage?.id === assignedCounter.id)) {
@@ -2602,6 +2613,7 @@ async function startServer() {
       if (!isGlobalAdmin && !isPosAdmin) {
         delete settingsUpdates.seoTitle;
         delete settingsUpdates.seoDescription;
+        delete settingsUpdates.seoFocusKeyword;
         delete settingsUpdates.seoKeywords;
         delete settingsUpdates.seoRobots;
       }
@@ -2646,6 +2658,7 @@ async function startServer() {
         siteSettings,
         ...(typeof settingsUpdates.seoTitle === 'string' ? { seoTitle: settingsUpdates.seoTitle.trim() } : {}),
         ...(typeof settingsUpdates.seoDescription === 'string' ? { seoDescription: settingsUpdates.seoDescription.trim() } : {}),
+        ...(typeof settingsUpdates.seoFocusKeyword === 'string' ? { seoFocusKeyword: settingsUpdates.seoFocusKeyword.trim().slice(0, 120) } : {}),
         ...(typeof settingsUpdates.seoKeywords === 'string' ? { seoKeywords: settingsUpdates.seoKeywords.trim() } : {}),
         ...(typeof settingsUpdates.seoRobots === 'string' ? { seoRobots: settingsUpdates.seoRobots } : {}),
         updated_at: new Date().toISOString(),
@@ -4154,6 +4167,7 @@ async function startServer() {
         adminUserId: page.adminUserId,
         seoTitle: page.seoTitle || '',
         seoDescription: page.seoDescription || '',
+        seoFocusKeyword: page.seoFocusKeyword || '',
         seoKeywords: page.seoKeywords || '',
         seoRobots: page.seoRobots || 'index, follow',
         sslStatus: page.sslStatus || 'pending',
@@ -4175,6 +4189,7 @@ async function startServer() {
 
     page.seoTitle = String(req.body?.seoTitle || '').trim().slice(0, 70);
     page.seoDescription = String(req.body?.seoDescription || '').trim().slice(0, 200);
+    page.seoFocusKeyword = String(req.body?.seoFocusKeyword || '').trim().slice(0, 120);
     page.seoKeywords = String(req.body?.seoKeywords || '').trim().slice(0, 300);
     page.seoRobots = ['index, follow', 'noindex, follow', 'index, nofollow', 'noindex, nofollow']
       .includes(req.body?.seoRobots) ? req.body.seoRobots : 'index, follow';
@@ -4190,6 +4205,7 @@ async function startServer() {
       id: page.id,
       seoTitle: page.seoTitle,
       seoDescription: page.seoDescription,
+      seoFocusKeyword: page.seoFocusKeyword,
       seoKeywords: page.seoKeywords,
       seoRobots: page.seoRobots,
       updated_at: page.updated_at,
@@ -4211,6 +4227,7 @@ async function startServer() {
     const subdomain = String(req.body?.subdomain || '').trim().toLocaleLowerCase('en-US');
     const seoTitle = String(req.body?.seoTitle || '').trim().slice(0, 70);
     const seoDescription = String(req.body?.seoDescription || '').trim().slice(0, 200);
+    const seoFocusKeyword = String(req.body?.seoFocusKeyword || '').trim().slice(0, 120);
     const seoKeywords = String(req.body?.seoKeywords || '').trim().slice(0, 300);
     const reservedSubdomains = new Set([...RESERVED_SEO_SUBDOMAINS, 'kreditmotorhonda', 'solusi', 'sales']);
 
@@ -4244,6 +4261,7 @@ async function startServer() {
       content: '',
       seoTitle: seoTitle || `${name} | Sales Counter Honda Bandung`.slice(0, 70),
       seoDescription: seoDescription || `Hubungi ${name}, Sales Counter Honda Bandung. Konsultasi motor, harga, promo, dan simulasi kredit Honda melalui WhatsApp.`.slice(0, 200),
+      seoFocusKeyword: seoFocusKeyword || name.slice(0, 120),
       seoKeywords: seoKeywords || `${name}, sales Honda Bandung, kredit motor Honda Bandung`.slice(0, 300),
       seoRobots: 'index, follow',
       siteSettings: {
@@ -4313,6 +4331,7 @@ async function startServer() {
       adminUserId,
       seoTitle: page.seoTitle,
       seoDescription: page.seoDescription,
+      seoFocusKeyword: page.seoFocusKeyword,
       seoKeywords: page.seoKeywords,
       seoRobots: page.seoRobots,
       sslStatus: page.sslStatus,

@@ -109,6 +109,7 @@ export interface SeoLandingPage {
   promos?: Promo[];
   seoTitle: string;
   seoDescription: string;
+  seoFocusKeyword?: string;
   seoKeywords: string;
   seoRobots: string;
   siteSettings?: Partial<SeoPostSiteSettings>;
@@ -129,6 +130,7 @@ export interface SalesCounterSite {
   adminUserId: string;
   seoTitle?: string;
   seoDescription?: string;
+  seoFocusKeyword?: string;
   seoKeywords?: string;
   seoRobots?: string;
   sslStatus?: 'pending' | 'provisioning' | 'active' | 'failed';
