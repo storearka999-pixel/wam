@@ -46,7 +46,6 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
             <a href="#simulasi">Simulasi Kredit</a>
             <a href="#artikel">Artikel & Tips</a>
             <a href="#kontak">Kontak</a>
-            <a href="/admin">Login Panel Admin</a>
           </div>
           <div>
             <h2>Hubungi Kami</h2>
@@ -217,7 +216,6 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
             <ul className="space-y-2">
               <li><span className="text-zinc-500">Authorized Honda Dealer</span></li>
               <li><span className="text-zinc-500">PT Astra Honda Motor Partner</span></li>
-              <li><a href="/admin" className="text-zinc-400 hover:text-red-400 transition-colors">Login Panel Admin</a></li>
             </ul>
           </div>
 
