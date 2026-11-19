@@ -10,9 +10,10 @@ import { request as httpRequest } from 'node:http';
 import { promisify } from 'node:util';
 import { createServer as createViteServer } from 'vite';
 import * as XLSX from 'xlsx';
-import { DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_TITLE, MAX_IMAGE_UPLOAD_BYTES, MAX_MOTOR_IMAGES, MAX_PROMO_IMAGES } from './src/constants';
+import { DEFAULT_SEO_DESCRIPTION, DEFAULT_SEO_TITLE, MAX_ARTICLE_VIDEO_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_BYTES, MAX_MOTOR_IMAGES, MAX_PROMO_IMAGES } from './src/constants';
 import { DEFAULT_CATALOG_ANIMATION, isCatalogAnimation, normalizeCatalogAnimationSpeed } from './src/catalogAnimation';
 import { findSeoLandingPost, getSeoLandingPosts, getSeoLandingPostPath } from './src/utils/seoPosts';
+import { canManageArticle } from './src/utils/articleOwnership';
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -42,6 +43,7 @@ const OWNER_ANALYTICS_SITE_DB_FILES: Record<string, string> = {
   'solusikreditmotor.cloud': path.resolve(process.env.OWNER_ANALYTICS_SOLUSI_DB_FILE || path.join(OWNER_ANALYTICS_ROOT_DIR, 'sites', 'solusi', 'data', 'db.json')),
 };
 const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(process.cwd(), 'public', 'uploads'));
+const ARTICLE_VIDEO_UPLOADS_DIR = path.join(UPLOADS_DIR, 'article-videos');
 const CATALOG_API_URL = String(process.env.CATALOG_API_URL || '').trim().replace(/\/+$/, '');
 const CATALOG_SERVICE_TOKEN = String(process.env.CATALOG_SERVICE_TOKEN || '');
 const CATALOG_OWNER_DATA_FILE = (() => {
@@ -133,6 +135,7 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
+fs.mkdirSync(ARTICLE_VIDEO_UPLOADS_DIR, { recursive: true });
 
 function readJsonDbFile(filePath: string) {
   try {
@@ -365,7 +368,8 @@ function createPublicInitialData(db: any, hostname?: string) {
       : Array.isArray(db.promos) ? db.promos : [],
     articles: (Array.isArray(siteArticles) ? siteArticles : [])
       .filter((article: any) => article.published === true)
-      .sort((left: any, right: any) => String(right.created_at || '').localeCompare(String(left.created_at || ''))),
+      .sort((left: any, right: any) => String(right.created_at || '').localeCompare(String(left.created_at || '')))
+      .map(publicArticle),
     testimonials,
     manifesto: Array.isArray(db.manifesto) ? db.manifesto : [],
     fifPriceList: currentFifPriceList(db),
@@ -568,13 +572,13 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
   const pageSettings = getSettingsForSeoPage(settings, hostPage);
   const isHostPost = Boolean(hostPost && hostPage && hostPost.id !== hostPage.id);
   const title = String(article
-    ? `${article.title} | ${pageSettings.name || 'Honda Wijaya Abadi'}`
+    ? article.seoTitle || `${article.title} | ${pageSettings.name || 'Honda Wijaya Abadi'}`
     : isHostPost ? hostPost?.title : hostPage?.seoTitle || hostPage?.title || page?.title || pageSettings.seoTitle || DEFAULT_SEO_TITLE).trim();
   const description = String(article
-    ? article.excerpt || article.content.trim().slice(0, 160)
+    ? article.seoDescription || article.excerpt || article.content.trim().slice(0, 160)
     : isHostPost ? hostPost?.content.trim().slice(0, 160) : hostPage?.seoDescription || page?.description || pageSettings.seoDescription || DEFAULT_SEO_DESCRIPTION).trim();
   const keywords = String(article
-    ? [article.title, article.category, pageSettings.seoKeywords].filter(Boolean).join(', ')
+    ? article.seoKeywords || [article.title, article.category, pageSettings.seoKeywords].filter(Boolean).join(', ')
     : hostPage?.seoKeywords || page?.keywords || pageSettings.seoKeywords || 'dealer motor Honda Bandung, harga motor Honda Bandung, kredit motor Honda Bandung, simulasi kredit Honda, promo motor Honda Bandung, DP motor Honda, tenor motor Honda, Honda Beat Bandung, Honda Scoopy Bandung, Honda Vario Bandung, Honda PCX Bandung, Honda ADV Bandung, dealer Honda Bandung, Honda Wijaya Abadi Mulia Motor').trim();
   const normalizedHostname = normalizeAnalyticsHost(hostname);
   const isRootSiteHost = SALES_COUNTER_ROOT_DOMAINS.has(normalizedHostname)
@@ -611,6 +615,10 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
     ? (Array.isArray(article.images) && article.images.length ? article.images : article.image ? [article.image] : [])
         .map((image: string) => /^https?:\/\//i.test(image) ? image : `${articleOrigin}${image.startsWith('/') ? '' : '/'}${image}`)
     : [];
+  const articleVideoUrl = isArticleVideoUrl(article?.video) ? new URL(article.video, articleOrigin).href : '';
+  const articleVideoMetadata = articleVideoUrl
+    ? `<meta property="og:video" content="${escape(articleVideoUrl)}"><meta property="og:video:type" content="${article.video.endsWith('.webm') ? 'video/webm' : 'video/mp4'}">`
+    : '';
   const articleStructuredData = article
     ? `<script type="application/ld+json">${JSON.stringify({
         '@context': 'https://schema.org',
@@ -618,6 +626,15 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
         headline: article.title,
         description,
         image: articleImages.length ? articleImages : undefined,
+        video: articleVideoUrl ? {
+          '@type': 'VideoObject',
+          name: article.title,
+          description,
+          thumbnailUrl: articleImages[0] || socialImageUrl,
+          uploadDate: article.created_at,
+          contentUrl: articleVideoUrl,
+          embedUrl: canonical,
+        } : undefined,
         datePublished: article.created_at,
         dateModified: article.updated_at || article.created_at,
         author: { '@type': 'Person', name: article.author || pageSettings.name },
@@ -648,7 +665,7 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
     .replace(/<link\s+rel=["']alternate["'][^>]*hreflang=["'][^>]*>/gi, '');
 
   return htmlWithHreflang
-    .replace(/<head[^>]*>/i, (head) => `${head}${heroImagePreload}${googleTrackingScript}<script>window.__HWA_INITIAL_SETTINGS__=${initialSettings};window.__HWA_INITIAL_DATA__=${initialPublicData};</script>${articleStructuredData}`)
+    .replace(/<head[^>]*>/i, (head) => `${head}${heroImagePreload}${googleTrackingScript}${articleVideoMetadata}<script>window.__HWA_INITIAL_SETTINGS__=${initialSettings};window.__HWA_INITIAL_DATA__=${initialPublicData};</script>${articleStructuredData}`)
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escape(title)}</title>`)
     .replace(/<meta\s+name="description"[^>]*>/i, `<meta name="description" content="${escape(description)}" />`)
     .replace(/<meta\s+name="keywords"[^>]*>/i, `<meta name="keywords" content="${escape(keywords)}" />`)
@@ -660,10 +677,10 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
     .replace(/<meta\s+property="og:url"[^>]*>/i, `<meta property="og:url" content="${escape(canonical)}" />`)
     .replace(/<meta\s+name="twitter:title"[^>]*>/i, `<meta name="twitter:title" content="${escape(title)}" />`)
     .replace(/<meta\s+name="twitter:description"[^>]*>/i, `<meta name="twitter:description" content="${escape(description)}" />`)
-    .replace(/<meta\s+property="og:image"[^>]*>/i, `<meta property="og:image" content="${escape(socialImageUrl)}" />`)
+    .replace(/<meta\s+property="og:image"[^>]*>/i, `<meta property="og:image" content="${escape(articleImages[0] || socialImageUrl)}" />`)
     .replace(/<meta\s+property="og:image:width"[^>]*>/i, '<meta property="og:image:width" content="1200" />')
     .replace(/<meta\s+property="og:image:height"[^>]*>/i, '<meta property="og:image:height" content="630" />')
-    .replace(/<meta\s+name="twitter:image"[^>]*>/i, `<meta name="twitter:image" content="${escape(socialImageUrl)}" />`)
+    .replace(/<meta\s+name="twitter:image"[^>]*>/i, `<meta name="twitter:image" content="${escape(articleImages[0] || socialImageUrl)}" />`)
     .replace(/https:\/\/kreditmotorhonda\.tech\/uploads\/logo\.jpeg/g, escape(logoUrl))
     .replace(/https:\/\/kreditmotorhonda\.tech/g, escape(siteOrigin))
     .replace(
@@ -1903,6 +1920,17 @@ function normalizeMotorImages(value: unknown, fallback: unknown = []): string[] 
   return source.map((image: unknown) => String(image || '').trim()).filter(Boolean);
 }
 
+function isArticleVideoUrl(value: unknown): value is string {
+  return typeof value === 'string'
+    && /^\/uploads\/article-videos\/article-video-\d+-[a-f0-9]{16}\.(?:mp4|webm)$/i.test(value);
+}
+
+function publicArticle(article: any) {
+  const result = { ...article };
+  delete result.authorAdminId;
+  return result;
+}
+
 function isSharedCatalogImageUrl(value: string) {
   try {
     const url = new URL(value);
@@ -3115,8 +3143,31 @@ async function startServer() {
     if (req.header('x-admin-token') && !session) return res.status(401).json({ error: 'Sesi admin tidak valid atau sudah berakhir' });
     if (session && !isAdminAuthorizedForHost(session, req.hostname, readDb())) return res.status(403).json({ error: 'Akses admin tidak diizinkan untuk domain ini.' });
     const articles = getSiteArticles(db, req.hostname);
-    const visibleArticles = session ? articles : articles.filter((article: any) => article.published === true);
+    const visibleArticles = session
+      ? articles.filter((article: any) => canManageArticle(article.authorAdminId, session.id, isGlobalSuperAdmin(session)))
+      : articles.filter((article: any) => article.published === true).map(publicArticle);
     res.json(visibleArticles.sort((left: any, right: any) => String(right.created_at || '').localeCompare(String(left.created_at || ''))));
+  });
+
+  app.post('/api/articles/video', requireAdmin, express.raw({ type: ['video/mp4', 'video/webm'], limit: MAX_ARTICLE_VIDEO_UPLOAD_BYTES }), async (req, res) => {
+    const mimeType = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    const videoFormats: Record<string, { extension: string; signature: (buffer: Buffer) => boolean }> = {
+      'video/mp4': { extension: 'mp4', signature: (buffer) => buffer.length >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp' },
+      'video/webm': { extension: 'webm', signature: (buffer) => buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])) },
+    };
+    const format = videoFormats[mimeType];
+    if (!format) return res.status(415).json({ error: 'Format video yang didukung hanya MP4 dan WebM.' });
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: 'File video kosong atau tidak valid.' });
+    if (!format.signature(req.body)) return res.status(415).json({ error: 'Isi file tidak cocok dengan format video yang dipilih.' });
+
+    const filename = `article-video-${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${format.extension}`;
+    try {
+      await fs.promises.writeFile(path.join(ARTICLE_VIDEO_UPLOADS_DIR, filename), req.body, { flag: 'wx' });
+      return res.status(201).json({ url: `/uploads/article-videos/${filename}` });
+    } catch (error) {
+      console.error('Article video upload failed:', error);
+      return res.status(500).json({ error: 'Video artikel gagal disimpan.' });
+    }
   });
 
   app.post('/api/articles', requireAdmin, (req, res) => {
@@ -3127,11 +3178,14 @@ async function startServer() {
     const excerpt = String(req.body.excerpt || '').trim();
     const content = String(req.body.content || '').trim();
     const images = normalizeMotorImages(req.body.images);
+    const video = String(req.body.video || '').trim();
     if (!title || !slug || !excerpt || !content) return res.status(400).json({ error: 'Judul, slug, ringkasan, dan isi artikel wajib diisi.' });
     if (articles.some((article: any) => article.slug === slug)) return res.status(409).json({ error: 'Slug artikel sudah digunakan.' });
     if (images.length > MAX_MOTOR_IMAGES) return res.status(400).json({ error: `Maksimal ${MAX_MOTOR_IMAGES} gambar per artikel.` });
+    if (video && !isArticleVideoUrl(video)) return res.status(400).json({ error: 'Video artikel tidak valid. Unggah ulang video melalui panel admin.' });
 
     const now = new Date().toISOString();
+    const session = (req as any).adminSession || getSession(req);
     const article = {
       id: `article-${crypto.randomUUID()}`,
       title,
@@ -3141,9 +3195,14 @@ async function startServer() {
       content,
       image: images[0] || '',
       images,
+      video,
+      seoTitle: String(req.body.seoTitle || '').trim().slice(0, 120),
+      seoDescription: String(req.body.seoDescription || '').trim().slice(0, 320),
+      seoKeywords: String(req.body.seoKeywords || '').trim().slice(0, 500),
       animation: isCatalogAnimation(req.body.animation) ? req.body.animation : DEFAULT_CATALOG_ANIMATION,
       animationSpeed: normalizeCatalogAnimationSpeed(req.body.animationSpeed),
       author: String(req.body.author || 'Honda Wijaya Abadi').trim(),
+      authorAdminId: session.id,
       published: req.body.published === true,
       created_at: now,
       updated_at: now,
@@ -3164,9 +3223,13 @@ async function startServer() {
     const excerpt = String(req.body.excerpt ?? current.excerpt).trim();
     const content = String(req.body.content ?? current.content).trim();
     const images = req.body.images === undefined ? normalizeMotorImages(current.images, current.image) : normalizeMotorImages(req.body.images);
+    const video = req.body.video === undefined ? String(current.video || '') : String(req.body.video || '').trim();
+    const session = (req as any).adminSession || getSession(req);
+    if (!canManageArticle(current.authorAdminId, session.id, isGlobalSuperAdmin(session))) return res.status(404).json({ error: 'Artikel tidak ditemukan.' });
     if (!title || !slug || !excerpt || !content) return res.status(400).json({ error: 'Judul, slug, ringkasan, dan isi artikel wajib diisi.' });
     if (articles.some((article: any) => article.slug === slug && article.id !== current.id)) return res.status(409).json({ error: 'Slug artikel sudah digunakan.' });
     if (images.length > MAX_MOTOR_IMAGES) return res.status(400).json({ error: `Maksimal ${MAX_MOTOR_IMAGES} gambar per artikel.` });
+    if (video && !isArticleVideoUrl(video)) return res.status(400).json({ error: 'Video artikel tidak valid. Unggah ulang video melalui panel admin.' });
 
     articles[index] = {
       ...current,
@@ -3177,6 +3240,10 @@ async function startServer() {
       content,
       image: images[0] || '',
       images,
+      video,
+      seoTitle: String(req.body.seoTitle ?? current.seoTitle ?? '').trim().slice(0, 120),
+      seoDescription: String(req.body.seoDescription ?? current.seoDescription ?? '').trim().slice(0, 320),
+      seoKeywords: String(req.body.seoKeywords ?? current.seoKeywords ?? '').trim().slice(0, 500),
       animation: isCatalogAnimation(req.body.animation ?? current.animation) ? (req.body.animation ?? current.animation) : DEFAULT_CATALOG_ANIMATION,
       animationSpeed: normalizeCatalogAnimationSpeed(req.body.animationSpeed ?? current.animationSpeed),
       author: String(req.body.author ?? current.author ?? 'Honda Wijaya Abadi').trim(),
@@ -3190,8 +3257,12 @@ async function startServer() {
 
   app.delete('/api/articles/:id', requireAdmin, (req, res) => {
     const db = readSiteDb();
-    const articles = getSiteArticles(db, req.hostname).filter((article: any) => article.id !== req.params.id);
-    setSiteArticles(db, req.hostname, articles);
+    const articles = getSiteArticles(db, req.hostname);
+    const current = articles.find((article: any) => article.id === req.params.id);
+    const session = (req as any).adminSession || getSession(req);
+    if (!current) return res.status(404).json({ error: 'Artikel tidak ditemukan.' });
+    if (!canManageArticle(current.authorAdminId, session.id, isGlobalSuperAdmin(session))) return res.status(404).json({ error: 'Artikel tidak ditemukan.' });
+    setSiteArticles(db, req.hostname, articles.filter((article: any) => article.id !== req.params.id));
     if (!writeSiteDb(db)) return res.status(500).json({ error: 'Gagal menghapus artikel.' });
     res.json({ success: true });
   });

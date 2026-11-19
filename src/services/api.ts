@@ -8,7 +8,7 @@ interface MotorSaveData extends Partial<Motor> {
     options: Record<string, number[]>;
   };
 }
-import { MAX_IMAGE_UPLOAD_BYTES } from '../constants';
+import { MAX_ARTICLE_VIDEO_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_BYTES } from '../constants';
 
 const ADMIN_TOKEN_KEY = 'hwa-admin-token';
 
@@ -440,6 +440,39 @@ export const api = {
     const res = await fetch(`/api/articles/${encodeURIComponent(id)}`, { method: 'DELETE', headers: adminHeaders() });
     const result = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(result.error || 'Gagal menghapus artikel');
+  },
+
+  async uploadArticleVideo(file: File): Promise<string> {
+    if (file.size > MAX_ARTICLE_VIDEO_UPLOAD_BYTES) {
+      throw new Error('Ukuran video melebihi batas 100 MB.');
+    }
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const contentTypeByExtension: Record<string, string> = { mp4: 'video/mp4', webm: 'video/webm' };
+    const contentType = file.type || contentTypeByExtension[extension];
+    if (!['video/mp4', 'video/webm'].includes(contentType || '')) {
+      throw new Error('Pilih video berformat MP4 atau WebM.');
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 120_000);
+    try {
+      const res = await fetch('/api/articles/video', {
+        method: 'POST',
+        headers: { ...adminHeaders(), 'Content-Type': contentType },
+        body: file,
+        signal: controller.signal,
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.url) throw new Error(result.error || `Upload video gagal (HTTP ${res.status})`);
+      return result.url;
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error('Upload video melewati batas 120 detik. Periksa koneksi atau gunakan video yang lebih kecil.');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   },
 
   // Testimonials

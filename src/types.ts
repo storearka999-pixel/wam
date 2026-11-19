@@ -61,9 +61,14 @@ export interface Article {
   content: string;
   image?: string;
   images?: string[];
+  video?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
   animation?: CatalogAnimation;
   animationSpeed?: number;
   author: string;
+  authorAdminId?: string;
   published: boolean;
   created_at?: string;
   updated_at?: string;

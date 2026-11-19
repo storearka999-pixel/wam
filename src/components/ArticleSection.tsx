@@ -173,10 +173,16 @@ export function ArticleSection({ articles }: ArticleSectionProps) {
               </div>
               <h2 className="mt-4 text-2xl font-black leading-tight text-white sm:text-4xl">{selectedArticle.title}</h2>
               <p className="mt-4 border-l-2 border-red-600 pl-4 text-base leading-7 text-zinc-300">{selectedArticle.excerpt}</p>
+              {selectedArticle.video && (
+                <video src={selectedArticle.video} controls autoPlay muted playsInline preload="metadata" className="mt-7 max-h-[60vh] w-full rounded-lg bg-black" aria-label={`Video artikel ${selectedArticle.title}`} />
+              )}
               <div className="mt-7 space-y-5 text-sm leading-7 text-zinc-300 sm:text-base">
                 {selectedArticle.content.split(/\n{2,}/).filter(Boolean).map((paragraph, index) => <p key={`${selectedArticle.id}-${index}`}>{paragraph}</p>)}
               </div>
-              <p className="mt-8 border-t border-white/10 pt-5 text-xs font-semibold text-zinc-500">Ditulis oleh {selectedArticle.author}</p>
+              <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-5">
+                <p className="text-xs font-semibold text-zinc-500">Ditulis oleh {selectedArticle.author}</p>
+                <a href="/" className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-500">Kunjungi website <ArrowRight className="h-4 w-4" /></a>
+              </div>
             </div>
           </article>
         </div>
