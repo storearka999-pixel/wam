@@ -504,7 +504,7 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
     : hostPage
     ? `${siteOrigin}${hostPost ? getSeoLandingPostPath(hostPage, hostPost) : '/'}`
     : page
-    ? `${siteOrigin}${pathname.replace(/\/+$/, '') || '/'}`
+    ? `${siteOrigin}${(pathname.replace(/\/+$/, '') || '')}/`
     : String(isRootSiteHost ? `${siteOrigin}/` : pageSettings.seoCanonicalUrl || `${siteOrigin}/`).trim();
   const robots = hostPage && hostPage.sslStatus !== 'active'
     ? 'noindex, follow'
@@ -553,15 +553,9 @@ function renderSeoMetadata(html: string, settings: any = {}, pathname = '/', ini
         )
       : html;
 
-  const hreflangPath = normalizedSeoPath === '/' ? '/' : normalizedSeoPath.endsWith('/') ? normalizedSeoPath : `${normalizedSeoPath}/`;
-  const hreflangLinks = [
-    ['id-ID', `https://kreditmotorhonda.tech${hreflangPath}`],
-    ['id', `https://kreditmotorhonda.id${hreflangPath}`],
-    ['x-default', `https://solusikreditmotor.cloud${hreflangPath}`],
-  ].map(([lang, href]) => `<link rel="alternate" hreflang="${lang}" href="${escape(href)}" />`).join('');
-  const htmlWithHreflang = htmlWithH1Fallback
-    .replace(/<link\s+rel=["']alternate["'][^>]*hreflang=["'][^>]*>/gi, '')
-    .replace(/(<link\s+rel=["']canonical["'][^>]*>)/i, `$1${hreflangLinks}`);
+  // These root domains are independently targeted Indonesian sites, not language or regional alternates.
+  // Avoid cross-domain hreflang links that incorrectly associate unrelated pages.
+  const htmlWithHreflang = htmlWithH1Fallback;
 
   return htmlWithHreflang
     .replace(/<head[^>]*>/i, (head) => `${head}${heroImagePreload}${googleTrackingScript}<script>window.__HWA_INITIAL_SETTINGS__=${initialSettings};window.__HWA_INITIAL_DATA__=${initialPublicData};</script>${articleStructuredData}`)
@@ -1379,41 +1373,15 @@ function renderMotorSeoPage(motor: any, slug: string, settings: any = {}, hostna
     category,
     sku: String(motor.id || slug),
     ...(images.length ? { image: images } : {}),
-    offers: {
-      '@type': 'Offer',
-      url: canonical,
-      priceCurrency: 'IDR',
-      ...(price ? { price: String(price) } : {}),
-      availability: 'https://schema.org/InStock',
-      itemCondition: 'https://schema.org/NewCondition',
-      hasMerchantReturnPolicy: {
-        '@type': 'MerchantReturnPolicy',
-        applicableCountry: 'ID',
-        merchantReturnDays: 7,
-        returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+    ...(price > 0 ? {
+      offers: {
+        '@type': 'Offer',
+        url: canonical,
+        priceCurrency: 'IDR',
+        price: String(price),
+        itemCondition: 'https://schema.org/NewCondition',
       },
-      shippingDetails: {
-        '@type': 'OfferShippingDetails',
-        shippingDestination: {
-          '@type': 'DefinedRegion',
-          addressCountry: 'ID',
-        },
-        shippingRate: {
-          '@type': 'MonetaryAmount',
-          value: 0,
-          currency: 'IDR',
-        },
-        deliveryTime: {
-          '@type': 'DeliveryTimeSettings',
-          transitTime: {
-            '@type': 'QuantitativeValue',
-            minValue: 1,
-            maxValue: 3,
-            unitCode: 'DAY',
-          },
-        },
-      },
-    },
+    } : {}),
   };
   const specificationList = specs.length
     ? `<ul>${specs.map((spec: string) => `<li>${escapeHtmlAttribute(spec)}</li>`).join('')}</ul>`
@@ -1477,6 +1445,7 @@ function renderDynamicSitemap(db: any, hostname = '') {
     { path: '/honda-vario-bandung/', changefreq: 'weekly', priority: '0.9' },
     { path: '/honda-pcx-bandung/', changefreq: 'weekly', priority: '0.9' },
     { path: '/honda-adv-bandung/', changefreq: 'weekly', priority: '0.8' },
+    { path: '/honda-stylo-bandung/', changefreq: 'weekly', priority: '0.8' },
   ];
   const motorPages = getSeoMotorPages(db).map(({ motor, path: pagePath }) => ({
     path: pagePath,
@@ -1522,11 +1491,12 @@ function renderDynamicSitemap(db: any, hostname = '') {
       : articlePages;
   const urls = sitemapPages.map((page: any) => {
     const parsedDate = page.lastmod ? new Date(page.lastmod) : null;
-    const lastmod = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString().slice(0, 10) : today;
+    const lastmod = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString().slice(0, 10) : '';
+    const lastmodTag = lastmod ? `<lastmod>${lastmod}</lastmod>` : '';
     const url = page.absolute ? page.path : `${origin}${page.path}`;
     const images = (page.images || []).map((image: string) => `<image:image><image:loc>${escapeHtmlAttribute(image)}</image:loc><image:title>${escapeHtmlAttribute(page.imageTitle || '')}</image:title></image:image>`).join('');
-    return `  <url><loc>${escapeHtmlAttribute(url)}</loc><lastmod>${lastmod}</lastmod><changefreq>${page.changefreq}</changefreq><priority>${page.priority}</priority>${images}</url>`;
-  });
+    return `  <url><loc>${escapeHtmlAttribute(url)}</loc>${lastmodTag}<changefreq>${page.changefreq}</changefreq><priority>${page.priority}</priority>${images}</url>`;
+  });;
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${urls.join('\n')}\n</urlset>`;
 }
 
@@ -4552,6 +4522,25 @@ async function startServer() {
       '/honda-adv-bandung',
     ], (req, res, next) => {
       try {
+        // Serve the dedicated, pre-rendered SEO document for the primary
+        // kreditmotorhonda.tech landing pages instead of the generic SPA shell.
+        // Other hostnames keep the existing host-aware rendering behavior.
+        if (normalizeAdminHost(req.hostname) === 'kreditmotorhonda.tech') {
+          const staticSeoPagePath = path.join(
+            distPath,
+            req.path.replace(/^\/+|\/+$/g, ''),
+            'index.html'
+          );
+          if (fs.existsSync(staticSeoPagePath)) {
+            if (!req.path.endsWith('/')) {
+              const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+              return res.redirect(301, `${req.path}/${queryString}`);
+            }
+            res.set('Cache-Control', 'public, max-age=0, must-revalidate');
+            return res.sendFile(staticSeoPagePath);
+          }
+        }
+
         const indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
         const db = readDb();
         res.set('Cache-Control', 'no-cache');
@@ -4588,6 +4577,34 @@ async function startServer() {
       const articlePath = req.path.match(/^\/artikel\/([^/]+)\/?$/);
       if (articlePath && !initialData.articles.some((item: any) => item.slug === articlePath[1] && item.published === true)) {
         return res.status(404).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Artikel tidak ditemukan</title><body><main><h1>Artikel tidak ditemukan</h1><a href="/#artikel">Lihat artikel</a></main></body></html>');
+      }
+
+      // The primary .tech site has a defined set of public routes. Do not
+      // return the SPA shell with HTTP 200 for arbitrary, nonexistent URLs.
+      if (normalizeAdminHost(req.hostname) === 'kreditmotorhonda.tech') {
+        const normalizedPath = req.path.replace(/\/+$/, '') || '/';
+        const knownLandingPaths = new Set([
+          '/',
+          '/dealer-honda-bandung',
+          '/kredit-motor-honda-bandung',
+          '/simulasi-kredit-honda',
+          '/harga-motor-honda-bandung',
+          '/honda-beat-bandung',
+          '/honda-scoopy-bandung',
+          '/honda-vario-bandung',
+          '/honda-pcx-bandung',
+          '/honda-adv-bandung',
+          '/honda-stylo-bandung',
+          '/admin',
+          '/login',
+          '/masuk',
+          '/dashboard',
+        ]);
+        const isPublishedArticle = articlePath
+          && initialData.articles.some((item: any) => item.slug === articlePath[1] && item.published === true);
+        if (!knownLandingPaths.has(normalizedPath) && !isPublishedArticle) {
+          return res.status(404).type('html').send('<!doctype html><html lang="id"><meta charset="utf-8"><meta name="robots" content="noindex, follow"><title>Halaman tidak ditemukan | Kredit Motor Honda</title><body><main><h1>Halaman tidak ditemukan</h1><p>Halaman yang Anda cari tidak tersedia.</p><a href="/">Kembali ke beranda</a></main></body></html>');
+        }
       }
       res.set('Cache-Control', 'no-cache');
       res.type('html').send(renderSeoMetadata(indexHtml, db.settings || {}, req.path, initialData, req.hostname));
