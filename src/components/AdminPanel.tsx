@@ -286,7 +286,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     const matchesBestseller = motorBestsellerFilter === 'all'
       || Boolean(motor.is_bestseller) === (motorBestsellerFilter === 'bestseller');
     return matchesSearch && matchesCategory && matchesBestseller;
-  });
+  }).sort((left, right) => (
+    left.category.localeCompare(right.category, 'id')
+    || (Number.isFinite(left.sort_order) ? Number(left.sort_order) : Number.MAX_SAFE_INTEGER)
+      - (Number.isFinite(right.sort_order) ? Number(right.sort_order) : Number.MAX_SAFE_INTEGER)
+  ));
   const handleMoveMotor = async (motorId: string, direction: -1 | 1) => {
     if (!canManageCatalog) return;
     const categoryMotors = motors

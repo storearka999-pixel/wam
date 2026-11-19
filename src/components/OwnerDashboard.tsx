@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   BarChart3,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -31,11 +32,12 @@ interface OwnerAnalytics {
   sites: Array<{ host: string; visits: number }>;
   trafficSources: Array<{ source: string; visits: number }>;
   siteAdmins: Array<{ host: string; dataAvailable: boolean; admins: Array<{ username: string; role: string }> }>;
-  posSites: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string }>;
-  salesCounters: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string }>;
-  seoSubdomains: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string }>;
+  posSites: Array<{ id: string; parentSeoPageId: string | null; host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string }>;
+  salesCounters: Array<{ id: string; parentSeoPageId: string | null; domainSuffix: string; host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string; posSites: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string }> }>;
+  mainWebsites: Array<{ host: string; title: string; salesCounters: OwnerAnalytics['salesCounters']; seoSubdomains: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string; domainSuffix: string }> }>;
+  seoSubdomains: Array<{ host: string; title: string; sslStatus: string; seoRobots: string; postCount: number; updatedAt: string; domainSuffix: string }>;
   seoPosts: Array<{ host: string; title: string; url: string; author: string; updatedAt: string }>;
-  siteLeads: Array<{ id: string; host: string; customerName: string; motorName: string; status: string; createdAt: string }>;
+  siteLeads: Array<{ id: string; host: string; siteType: 'main' | 'sales-counter' | 'pos' | 'seo' | 'other'; siteTitle: string; parentHost?: string; parentTitle?: string; rootDomain: string; customerName: string; motorName: string; status: string; createdAt: string }>;
   siteLeadsTotal: number;
   dailyVisitors: Array<{ date: string; label: string; visits: number }>;
   topPages: Array<{ page: string; visits: number }>;
@@ -55,7 +57,8 @@ interface OwnerAnalytics {
 }
 
 type DateRange = '7d' | '30d' | '90d' | 'all' | 'custom';
-type OwnerDashboardSection = 'overview' | 'domains' | 'admins' | 'leads' | 'pages' | 'pos' | 'sales-counters';
+type OwnerDashboardSection = 'overview' | 'domains' | 'admins' | 'leads' | 'pages' | 'hierarchy';
+type LeadSiteFilter = 'all' | 'main' | 'sales-counter' | 'pos' | 'seo' | 'other';
 
 function jakartaDateKey(date: Date) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(date);
@@ -144,6 +147,8 @@ export default function OwnerDashboard() {
   const [showAllSearchTerms, setShowAllSearchTerms] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [leadSiteFilter, setLeadSiteFilter] = useState<LeadSiteFilter>('all');
+  const [leadDomainFilter, setLeadDomainFilter] = useState('all');
 
   useEffect(() => {
     localStorage.setItem('hwa-owner-dashboard-theme', isDarkMode ? 'dark' : 'light');
@@ -201,7 +206,7 @@ export default function OwnerDashboard() {
     };
 
     void refresh();
-    const intervalId = window.setInterval(() => void refresh(), 30_000);
+    const intervalId = window.setInterval(() => void refresh(), 10_000);
     return () => {
       active = false;
       window.clearInterval(intervalId);
@@ -261,6 +266,10 @@ export default function OwnerDashboard() {
           ? '30 hari terakhir'
           : '90 hari terakhir';
   const previousPeriodChange = analytics?.previousPeriodChange ?? null;
+  const visibleSiteLeads = (analytics?.siteLeads || []).filter((lead) => (
+    (leadSiteFilter === 'all' || lead.siteType === leadSiteFilter)
+    && (leadDomainFilter === 'all' || lead.rootDomain === leadDomainFilter)
+  ));
   let donutProgress = 0;
   const sourceColors = ['#e60012', '#1478ef', '#f59e0b', '#9333ea', '#a8b1c2'];
   const trafficSources = analytics?.trafficSources || [];
@@ -297,7 +306,7 @@ export default function OwnerDashboard() {
     { id: 'domains', label: 'Domain Dipantau', icon: <Globe className="h-4 w-4" /> },
     { id: 'admins', label: 'Admin Owner', icon: <Users className="h-4 w-4" /> },
     { id: 'leads', label: 'Prospek Masuk', icon: <Users className="h-4 w-4" /> },
-    { id: 'pages', label: 'Landing Page', icon: <Link2 className="h-4 w-4" /> },
+    { id: 'hierarchy', label: 'Struktur Website', icon: <Link2 className="h-4 w-4" /> },
   ];
   const sectionTitles: Record<OwnerDashboardSection, string> = {
     overview: 'Ringkasan Analitik Network',
@@ -305,15 +314,13 @@ export default function OwnerDashboard() {
     admins: 'Admin Owner',
     leads: 'Prospek Masuk',
     pages: 'URL Landing Pages',
-    pos: 'POS',
-    'sales-counters': 'Sales Counter',
+    hierarchy: 'Website Utama, Sales Counter & POS',
   };
   const pageSectionNavigation = (
     <div className="flex w-fit rounded-lg bg-slate-100 p-1 text-[11px] font-semibold dark:bg-slate-800" role="group" aria-label="Bagian URL dan SEO">
       {([
         { id: 'pages', label: 'Landing Page' },
-        { id: 'pos', label: 'POS' },
-        { id: 'sales-counters', label: 'Sales Counter' },
+        { id: 'hierarchy', label: 'Struktur Website' },
       ] as const).map((section) => (
         <button key={section.id} type="button" aria-pressed={activeSection === section.id} onClick={() => { setActiveSection(section.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`rounded-md px-3 py-1.5 transition ${activeSection === section.id ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}`}>
           {section.label}
@@ -351,7 +358,7 @@ export default function OwnerDashboard() {
                   <button
                     key={item.id}
                     type="button"
-                      aria-current={activeSection === item.id || (item.id === 'pages' && (activeSection === 'pos' || activeSection === 'sales-counters')) ? 'page' : undefined}
+                    aria-current={activeSection === item.id ? 'page' : undefined}
                     onClick={() => {
                       setActiveSection(item.id as OwnerDashboardSection);
                       setIsSidebarOpen(false);
@@ -708,13 +715,54 @@ export default function OwnerDashboard() {
                 <div className="flex flex-col justify-between gap-3 border-b border-slate-100 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:px-6">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Daftar Peminat &amp; Prospek Masuk</h3>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Tersimpan secara dinamis setiap kali pengunjung mengklik &quot;Saya Tertarik&quot; atau &quot;Ajukan Kredit&quot;.</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Prospek dikelompokkan menurut website sumber; POS ditautkan ke Sales Counter induknya.</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="shrink-0 text-[11px] text-slate-400">{analytics?.siteLeadsTotal || 0} prospek</span>
+                    <span className="shrink-0 text-[11px] text-slate-400">{visibleSiteLeads.length} dari {analytics?.siteLeadsTotal || 0} prospek</span>
                   </div>
                 </div>
-                {analytics?.siteLeads?.length ? (
+                <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-800 sm:px-6" role="group" aria-label="Filter prospek berdasarkan website">
+                  {([
+                    { id: 'all', label: 'Semua' },
+                    { id: 'main', label: 'Website Utama' },
+                    { id: 'sales-counter', label: 'Sales Counter' },
+                    { id: 'pos', label: 'POS' },
+                    { id: 'seo', label: 'SEO Subdomain' },
+                    { id: 'other', label: 'Website Lain' },
+                  ] as const).map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      aria-pressed={leadSiteFilter === filter.id}
+                      onClick={() => { setLeadSiteFilter(filter.id); setCurrentPage(1); }}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${leadSiteFilter === filter.id ? 'border-red-600 bg-red-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-800 sm:px-6" role="group" aria-label="Filter prospek berdasarkan domain utama">
+                  <button
+                    type="button"
+                    aria-pressed={leadDomainFilter === 'all'}
+                    onClick={() => { setLeadDomainFilter('all'); setCurrentPage(1); }}
+                    className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${leadDomainFilter === 'all' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                  >
+                    Semua domain
+                  </button>
+                  {(analytics?.mainWebsites || []).map((website) => (
+                    <button
+                      key={website.host}
+                      type="button"
+                      aria-pressed={leadDomainFilter === website.host}
+                      onClick={() => { setLeadDomainFilter(website.host); setCurrentPage(1); }}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${leadDomainFilter === website.host ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                    >
+                      {website.host}
+                    </button>
+                  ))}
+                </div>
+                {visibleSiteLeads.length ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[640px] border-collapse text-left">
                       <thead>
@@ -726,7 +774,7 @@ export default function OwnerDashboard() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800/60">
-                        {paginateRows(analytics.siteLeads, currentPage, pageSize).map((lead) => {
+                        {paginateRows(visibleSiteLeads, currentPage, pageSize).map((lead) => {
                           const statusClass = lead.status === 'Selesai'
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
                             : lead.status === 'Ditolak'
@@ -738,7 +786,9 @@ export default function OwnerDashboard() {
                           return (
                             <tr key={`${lead.host}-${lead.id}`} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                               <td className="px-5 py-3.5 sm:px-6">
-                                <span className="block font-semibold text-slate-800 dark:text-slate-200">{lead.host}</span>
+                                <span className="block font-semibold text-slate-800 dark:text-slate-200">{lead.siteType === 'main' ? 'Website Utama' : lead.siteType === 'sales-counter' ? 'Sales Counter' : lead.siteType === 'pos' ? 'POS' : lead.siteType === 'seo' ? 'SEO Subdomain' : 'Website Lain'} · {lead.siteTitle}</span>
+                                <span className="block text-[10px] text-slate-500 dark:text-slate-400">{lead.host}</span>
+                                {lead.siteType === 'pos' && lead.parentHost && <span className="mt-1 block text-[10px] text-blue-600 dark:text-blue-400">Di bawah {lead.parentTitle || lead.parentHost}</span>}
                                 <span className="mt-1 block text-[10px] text-slate-400">{createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toLocaleString('id-ID') : '-'}</span>
                               </td>
                               <td className="px-5 py-3.5 font-medium text-slate-800 dark:text-slate-200 sm:px-6">{lead.customerName}</td>
@@ -750,8 +800,8 @@ export default function OwnerDashboard() {
                       </tbody>
                     </table>
                   </div>
-                ) : <p className="px-6 py-10 text-center text-xs text-slate-500">Belum ada data peminat yang tersimpan di website terpilih.</p>}
-                <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.siteLeadsTotal || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
+                ) : <p className="px-6 py-10 text-center text-xs text-slate-500">Belum ada prospek untuk pilihan website ini pada periode terpilih.</p>}
+                <TablePagination page={currentPage} pageSize={pageSize} total={visibleSiteLeads.length} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
               </section>
 
               <section id="pages" className={`${activeSection === 'pages' ? '' : 'hidden'} overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900`}>
@@ -810,59 +860,79 @@ export default function OwnerDashboard() {
                 <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.topPagesTotal || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
               </section>
 
-              {activeSection === 'pos' && <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              {activeSection === 'hierarchy' && <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex flex-col justify-between gap-3 border-b border-slate-100 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:px-6">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">POS</h2>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Semua website POS yang terdaftar ({analytics?.posSites?.length || 0} website).</p>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Struktur Website</h2>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Setiap domain utama memiliki Sales Counter dan SEO subdomain sendiri. POS berada di bawah Sales Counter pembuatnya.</p>
                   </div>
                   {pageSectionNavigation}
                 </div>
-                {(analytics?.posSites || []).length ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] border-collapse text-left">
-                      <thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-semibold uppercase text-slate-400 dark:border-slate-800 dark:bg-slate-800/50"><th className="px-5 py-3 sm:px-6">Website POS</th><th className="px-5 py-3">Nama Website</th><th className="px-5 py-3">SSL</th><th className="px-5 py-3">Robots</th><th className="px-5 py-3 text-right">Pos</th><th className="px-5 py-3 sm:px-6">Diperbarui</th></tr></thead>
-                      <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800/60">
-                        {paginateRows(analytics!.posSites, currentPage, pageSize).map((site) => <tr key={site.host} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                          <td className="px-5 py-3.5 font-semibold text-slate-800 dark:text-slate-200 sm:px-6"><a href={`https://${site.host}`} target="_blank" rel="noreferrer" className="hover:text-red-600 dark:hover:text-red-400">{site.host}</a></td>
-                          <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{site.title}</td>
-                          <td className="px-5 py-3.5">{site.sslStatus}</td><td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{site.seoRobots}</td>
-                          <td className="px-5 py-3.5 text-right font-bold tabular-nums text-slate-900 dark:text-white">{site.postCount}</td>
-                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 sm:px-6">{site.updatedAt ? new Date(site.updatedAt).toLocaleDateString('id-ID') : '-'}</td>
-                        </tr>)}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : <p className="px-6 py-10 text-center text-xs text-slate-500">Belum ada website POS yang tercatat.</p>}
-                <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.posSites?.length || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
-              </section>}
-
-              {activeSection === 'sales-counters' && <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex flex-col justify-between gap-3 border-b border-slate-100 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:px-6">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Sales Counter</h2>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Status dan data seluruh website sales counter.</p>
-                  </div>
-                  {pageSectionNavigation}
+                <div className="space-y-4 p-5 sm:p-6">
+                  {(analytics?.mainWebsites || []).map((website) => (
+                    <article key={website.host} className="overflow-hidden rounded-2xl border border-red-200 dark:border-red-900/60">
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-red-50/70 p-4 dark:bg-red-950/20">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">Website Utama</p>
+                          <a href={`https://${website.host}`} target="_blank" rel="noreferrer" className="mt-1 block text-sm font-bold text-slate-900 hover:text-red-600 dark:text-white dark:hover:text-red-400">{website.title} · {website.host}</a>
+                        </div>
+                        <span className="rounded-full bg-red-100 px-3 py-1 text-[10px] font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">Membuat Sales Counter</span>
+                      </div>
+                      <div className="space-y-4 p-4">
+                        <section className="space-y-2" aria-label={`SEO subdomain untuk ${website.host}`}>
+                          <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">SEO Subdomain ({website.seoSubdomains.length})</h3>
+                          {website.seoSubdomains.length ? website.seoSubdomains.map((page) => (
+                            <div key={page.host} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-700/70">
+                              <div className="min-w-0">
+                                <a href={`https://${page.host}`} target="_blank" rel="noreferrer" className="block truncate text-xs font-semibold text-slate-800 hover:text-red-600 dark:text-slate-200 dark:hover:text-red-400">{page.title}</a>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400">{page.host}</span>
+                              </div>
+                              <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${page.sslStatus === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'}`}>
+                                {page.sslStatus === 'active' && <CheckCircle2 className="h-3 w-3" />}SSL {page.sslStatus}
+                              </span>
+                            </div>
+                          )) : <p className="text-xs text-slate-400">Belum ada SEO subdomain pada domain ini.</p>}
+                        </section>
+                        <section className="space-y-3" aria-label={`Sales Counter untuk ${website.host}`}>
+                          <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sales Counter ({website.salesCounters.length})</h3>
+                          {website.salesCounters.length ? website.salesCounters.map((counter) => (
+                            <article key={counter.id} className="rounded-2xl border border-slate-200 dark:border-slate-700">
+                              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-4 dark:bg-slate-800/40">
+                                <div>
+                                  <a href={`https://${counter.host}`} target="_blank" rel="noreferrer" className="block text-sm font-bold text-slate-900 hover:text-red-600 dark:text-white dark:hover:text-red-400">{counter.title}</a>
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">{counter.host}</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold ${counter.sslStatus === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'}`}>
+                                    {counter.sslStatus === 'active' && <CheckCircle2 className="h-3 w-3" />}SSL {counter.sslStatus}
+                                  </span>
+                                  <span className="rounded-full bg-slate-200 px-2.5 py-1 text-slate-600 dark:bg-slate-700 dark:text-slate-300">{counter.posSites.length} POS</span>
+                                </div>
+                              </div>
+                              <div className="space-y-2 p-4">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">POS di bawah Sales Counter ini</p>
+                                {counter.posSites.length ? counter.posSites.map((pos) => (
+                                  <div key={pos.host} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 px-3 py-2.5 dark:border-slate-700/70">
+                                    <div className="min-w-0">
+                                      <a href={`https://${pos.host}`} target="_blank" rel="noreferrer" className="block truncate text-xs font-semibold text-slate-800 hover:text-red-600 dark:text-slate-200 dark:hover:text-red-400">{pos.title}</a>
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400">{pos.host}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
+                                      <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold ${pos.sslStatus === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'}`}>
+                                        {pos.sslStatus === 'active' && <CheckCircle2 className="h-3 w-3" />}SSL {pos.sslStatus}
+                                      </span>
+                                      <span>{pos.postCount} pos</span>
+                                    </div>
+                                  </div>
+                                )) : <p className="rounded-xl border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">Belum ada POS. Admin Sales Counter dapat membuat POS dari panelnya.</p>}
+                              </div>
+                            </article>
+                          )) : <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">Belum ada Sales Counter. Admin website utama dapat membuat Sales Counter baru.</p>}
+                        </section>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-                {(analytics?.salesCounters || []).length ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] border-collapse text-left">
-                      <thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[10px] font-semibold uppercase text-slate-400 dark:border-slate-800 dark:bg-slate-800/50"><th className="px-5 py-3 sm:px-6">Subdomain</th><th className="px-5 py-3">Nama Website</th><th className="px-5 py-3">SSL</th><th className="px-5 py-3">Robots</th><th className="px-5 py-3 text-right">Pos</th><th className="px-5 py-3 sm:px-6">Diperbarui</th></tr></thead>
-                      <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800/60">
-                        {paginateRows(analytics!.salesCounters, currentPage, pageSize).map((site) => <tr key={site.host} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                          <td className="px-5 py-3.5 font-semibold text-slate-800 dark:text-slate-200 sm:px-6"><a href={`https://${site.host}`} target="_blank" rel="noreferrer" className="hover:text-red-600 dark:hover:text-red-400">{site.host}</a></td>
-                          <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{site.title}</td>
-                          <td className="px-5 py-3.5"><span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${site.sslStatus === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'}`}>{site.sslStatus}</span></td>
-                          <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{site.seoRobots}</td>
-                          <td className="px-5 py-3.5 text-right font-bold tabular-nums text-slate-900 dark:text-white">{site.postCount}</td>
-                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 sm:px-6">{site.updatedAt ? new Date(site.updatedAt).toLocaleDateString('id-ID') : '-'}</td>
-                        </tr>)}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : <p className="px-6 py-10 text-center text-xs text-slate-500">Belum ada website sales counter yang tercatat.</p>}
-                <TablePagination page={currentPage} pageSize={pageSize} total={analytics?.salesCounters?.length || 0} onPageChange={setCurrentPage} onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }} />
               </section>}
 
               <section className={`${activeSection === 'overview' ? '' : 'hidden'} overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900`} aria-label="Kata kunci pencarian">

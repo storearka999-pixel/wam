@@ -787,19 +787,27 @@ function getOwnerDashboardHosts(db: any = readDb()) {
 
 function getOwnerSeoPages(db: any = readCatalogDb()) {
   const pages = Array.isArray(db?.settings?.seoPages) ? [...db.settings.seoPages] : [];
-  for (const file of Object.values(OWNER_ANALYTICS_SITE_DB_FILES)) {
+  for (const [sourceHost, file] of Object.entries(OWNER_ANALYTICS_SITE_DB_FILES)) {
     const siteDb = readJsonDbFile(file);
-    if (Array.isArray(siteDb?.settings?.seoPages)) pages.push(...siteDb.settings.seoPages);
+    if (!Array.isArray(siteDb?.settings?.seoPages)) continue;
+    const sourceDomain = [...SALES_COUNTER_ROOT_DOMAINS]
+      .find((domain) => sourceHost === domain || sourceHost.endsWith(`.${domain}`))
+      || 'kreditmotorhonda.tech';
+    pages.push(...siteDb.settings.seoPages.map((page: any) => ({
+      ...page,
+      domainSuffix: getSeoPageDomainSuffix(page, sourceDomain),
+    })));
   }
-  const seen = new Set<string>();
-  return pages.filter((page: any) => {
+  const pagesByHost = new Map<string, any>();
+  const timestampFor = (page: any) => Date.parse(String(page.updatedAt || page.updated_at || page.createdAt || page.created_at || '')) || 0;
+  for (const page of pages) {
     const subdomain = String(page?.subdomain || '').trim().toLowerCase();
-    if (!subdomain) return false;
+    if (!subdomain) continue;
     const host = `${subdomain}.${getSeoPageDomainSuffix(page)}`;
-    if (seen.has(host)) return false;
-    seen.add(host);
-    return true;
-  });
+    const current = pagesByHost.get(host);
+    if (!current || timestampFor(page) > timestampFor(current)) pagesByHost.set(host, page);
+  }
+  return [...pagesByHost.values()];
 }
 
 function includeOwnerDashboardHosts(db: any, hosts: string[]) {
@@ -3558,7 +3566,10 @@ async function startServer() {
     });
     const ownerPages = getOwnerSeoPages(db);
     const ownerPageRows = ownerPages.map((page: any) => ({
+      id: String(page.id || ''),
+      parentSeoPageId: page.parentSeoPageId ? String(page.parentSeoPageId) : null,
       host: `${String(page.subdomain || '').trim().toLowerCase()}.${getSeoPageDomainSuffix(page)}`,
+      domainSuffix: getSeoPageDomainSuffix(page),
       title: String(page.title || page.seoTitle || page.subdomain || 'Tanpa judul'),
       sslStatus: String(page.sslStatus || 'pending'),
       seoRobots: String(page.seoRobots || 'index, follow'),
@@ -3566,20 +3577,74 @@ async function startServer() {
       updatedAt: String(page.updatedAt || page.updated_at || page.createdAt || page.created_at || ''),
       siteType: page.siteType === 'sales-counter' ? 'sales-counter' : page.siteType === 'pos' ? 'pos' : 'seo',
     })).filter((page: any) => validHosts.has(page.host));
-    const posSites = ownerPageRows.filter((page: any) => page.siteType === 'pos').map(({ siteType: _siteType, ...page }: any) => page);
-    const salesCounters = ownerPageRows.filter((page: any) => page.siteType === 'sales-counter').map(({ siteType: _siteType, ...page }: any) => page);
+    const posSites = ownerPageRows.filter((page: any) => page.siteType === 'pos');
+    const salesCounters = ownerPageRows.filter((page: any) => page.siteType === 'sales-counter').map((counter: any) => ({
+      ...counter,
+      posSites: posSites
+        .filter((pos: any) => pos.parentSeoPageId === counter.id)
+        .map(({ siteType: _siteType, parentSeoPageId: _parentSeoPageId, ...pos }: any) => pos),
+    }));
+    const ownerSiteByHost = new Map<string, { siteType: string; siteTitle: string; parentHost?: string; parentTitle?: string; rootDomain?: string }>([
+      ...[...SALES_COUNTER_ROOT_DOMAINS].map((host) => {
+        const sourceFile = OWNER_ANALYTICS_SITE_DB_FILES[host] || DB_FILE;
+        const sourceDb = databaseContents.get(sourceFile) || db;
+        return [host, { siteType: 'main', siteTitle: String(sourceDb.settings?.name || 'Website Utama'), rootDomain: host }] as const;
+      }),
+    ]);
+    for (const counter of salesCounters) {
+      ownerSiteByHost.set(counter.host, {
+        siteType: 'sales-counter',
+        siteTitle: counter.title,
+        rootDomain: counter.domainSuffix,
+      });
+      for (const pos of counter.posSites) {
+        ownerSiteByHost.set(pos.host, {
+          siteType: 'pos',
+          siteTitle: pos.title,
+          parentHost: counter.host,
+          parentTitle: counter.title,
+          rootDomain: counter.domainSuffix,
+        });
+      }
+    }
     const seoSubdomains = ownerPageRows.filter((page: any) => page.siteType === 'seo').map(({ siteType: _siteType, ...page }: any) => page);
+    for (const page of seoSubdomains) {
+      ownerSiteByHost.set(page.host, {
+        siteType: 'seo',
+        siteTitle: page.title,
+        rootDomain: page.domainSuffix,
+      });
+    }
+    const mainWebsites = [...SALES_COUNTER_ROOT_DOMAINS].sort().map((host) => {
+      const sourceFile = OWNER_ANALYTICS_SITE_DB_FILES[host] || DB_FILE;
+      const sourceDb = databaseContents.get(sourceFile) || db;
+      return {
+        host,
+        title: String(sourceDb.settings?.name || 'Website Utama'),
+        salesCounters: salesCounters.filter((counter: any) => counter.domainSuffix === host),
+        seoSubdomains: seoSubdomains.filter((page: any) => page.domainSuffix === host),
+      };
+    });
     const allSiteLeads = [...databaseSources.entries()].flatMap(([sourceFile, legacyHost]) => {
       const sourceDb = databaseContents.get(sourceFile) || {};
       const interests = Array.isArray(sourceDb.interests) ? sourceDb.interests : [];
-      return interests.map((lead: any) => ({
-        id: String(lead.id || ''),
-        host: normalizeAnalyticsHost(lead.host || legacyHost),
-        customerName: String(lead.customer_name || 'Calon Pembeli'),
-        motorName: String(lead.motor_name || 'Umum'),
-        status: String(lead.status || 'Baru'),
-        createdAt: String(lead.created_at || ''),
-      })).filter((lead: any) => lead.id && validHosts.has(lead.host));
+      return interests.map((lead: any) => {
+        const host = normalizeAnalyticsHost(lead.host || legacyHost);
+        const ownerSite = ownerSiteByHost.get(host);
+        return {
+          id: String(lead.id || ''),
+          host,
+          siteType: ownerSite?.siteType || 'other',
+          siteTitle: ownerSite?.siteTitle || host,
+          parentHost: ownerSite?.parentHost,
+          parentTitle: ownerSite?.parentTitle,
+          rootDomain: ownerSite?.rootDomain || [...SALES_COUNTER_ROOT_DOMAINS].find((domain) => host === domain || host.endsWith(`.${domain}`)) || '',
+          customerName: String(lead.customer_name || 'Calon Pembeli'),
+          motorName: String(lead.motor_name || 'Umum'),
+          status: String(lead.status || 'Baru'),
+          createdAt: String(lead.created_at || ''),
+        };
+      }).filter((lead: any) => lead.id && validHosts.has(lead.host));
     }).sort((left: any, right: any) => right.createdAt.localeCompare(left.createdAt));
     const filteredSiteLeads = allSiteLeads.filter((lead: any) => {
       if (!startDate && !endDate) return true;
@@ -3703,8 +3768,9 @@ async function startServer() {
       sites,
       trafficSources,
       siteAdmins,
-      posSites,
+      posSites: posSites.map(({ siteType: _siteType, ...page }: any) => page),
       salesCounters,
+      mainWebsites,
       seoSubdomains,
       siteLeads,
       siteLeadsTotal: filteredSiteLeads.length,
