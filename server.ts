@@ -4522,6 +4522,25 @@ async function startServer() {
       '/honda-adv-bandung',
     ], (req, res, next) => {
       try {
+        // Serve the dedicated, pre-rendered SEO document for the primary
+        // kreditmotorhonda.tech landing pages instead of the generic SPA shell.
+        // Other hostnames keep the existing host-aware rendering behavior.
+        if (normalizeAdminHost(req.hostname) === 'kreditmotorhonda.tech') {
+          const staticSeoPagePath = path.join(
+            distPath,
+            req.path.replace(/^\\/+|\\/+$/g, ''),
+            'index.html'
+          );
+          if (fs.existsSync(staticSeoPagePath)) {
+            if (!req.path.endsWith('/')) {
+              const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+              return res.redirect(301, `${req.path}/${queryString}`);
+            }
+            res.set('Cache-Control', 'public, max-age=0, must-revalidate');
+            return res.sendFile(staticSeoPagePath);
+          }
+        }
+
         const indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
         const db = readDb();
         res.set('Cache-Control', 'no-cache');
@@ -4558,6 +4577,34 @@ async function startServer() {
       const articlePath = req.path.match(/^\/artikel\/([^/]+)\/?$/);
       if (articlePath && !initialData.articles.some((item: any) => item.slug === articlePath[1] && item.published === true)) {
         return res.status(404).type('html').send('<!doctype html><html lang="id"><meta name="robots" content="noindex, follow"><title>Artikel tidak ditemukan</title><body><main><h1>Artikel tidak ditemukan</h1><a href="/#artikel">Lihat artikel</a></main></body></html>');
+      }
+
+      // The primary .tech site has a defined set of public routes. Do not
+      // return the SPA shell with HTTP 200 for arbitrary, nonexistent URLs.
+      if (normalizeAdminHost(req.hostname) === 'kreditmotorhonda.tech') {
+        const normalizedPath = req.path.replace(/\\/+$/, '') || '/';
+        const knownLandingPaths = new Set([
+          '/',
+          '/dealer-honda-bandung',
+          '/kredit-motor-honda-bandung',
+          '/simulasi-kredit-honda',
+          '/harga-motor-honda-bandung',
+          '/honda-beat-bandung',
+          '/honda-scoopy-bandung',
+          '/honda-vario-bandung',
+          '/honda-pcx-bandung',
+          '/honda-adv-bandung',
+          '/honda-stylo-bandung',
+          '/admin',
+          '/login',
+          '/masuk',
+          '/dashboard',
+        ]);
+        const isPublishedArticle = articlePath
+          && initialData.articles.some((item: any) => item.slug === articlePath[1] && item.published === true);
+        if (!knownLandingPaths.has(normalizedPath) && !isPublishedArticle) {
+          return res.status(404).type('html').send('<!doctype html><html lang="id"><meta charset="utf-8"><meta name="robots" content="noindex, follow"><title>Halaman tidak ditemukan | Kredit Motor Honda</title><body><main><h1>Halaman tidak ditemukan</h1><p>Halaman yang Anda cari tidak tersedia.</p><a href="/">Kembali ke beranda</a></main></body></html>');
+        }
       }
       res.set('Cache-Control', 'no-cache');
       res.type('html').send(renderSeoMetadata(indexHtml, db.settings || {}, req.path, initialData, req.hostname));
