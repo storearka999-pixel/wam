@@ -9,6 +9,7 @@ export interface Motor {
   id: string;
   name: string;
   category: string;
+  sort_order?: number;
   price: string;
   numericPrice?: number;
   image: string;
@@ -214,6 +215,8 @@ export interface WebsiteCustomization {
   heroOverlayColor?: string;
   heroOverlayOpacity?: number;
   themeBackgroundImage?: string;
+  themeBackgroundPositionX?: number;
+  themeBackgroundPositionY?: number;
   themeBackgroundAnimation?: boolean;
   colorPalettes?: Partial<Record<ThemeMode, ThemeColorPalette>>;
   templatePaletteBackup?: Partial<Record<ThemeMode, ThemeColorPalette>>;
@@ -243,6 +246,7 @@ export interface DealerSettings {
     youtube?: string;
     instagram?: string;
     facebook?: string;
+    tiktok?: string;
     x?: string;
     linkedin?: string;
   };

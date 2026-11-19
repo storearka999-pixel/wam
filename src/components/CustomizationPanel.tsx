@@ -366,11 +366,47 @@ export function CustomizationPanel({ settings, onSettingsChange }: Customization
           </div>
         </div>
         {customization.themeBackgroundImage ? (
-          <img
-            src={customization.themeBackgroundImage}
-            alt="Pratinjau background tema"
-            className="h-36 w-full rounded-md border border-white/10 object-cover"
-          />
+          <div
+            className="relative h-36 w-full cursor-move overflow-hidden rounded-md border border-white/10 bg-zinc-900 touch-none"
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              const rect = event.currentTarget.getBoundingClientRect();
+              onSettingsChange({
+                ...settings,
+                customization: {
+                  ...customization,
+                  themeBackgroundPositionX: Math.round(((event.clientX - rect.left) / rect.width) * 100),
+                  themeBackgroundPositionY: Math.round(((event.clientY - rect.top) / rect.height) * 100),
+                },
+              });
+            }}
+            onPointerMove={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+              const rect = event.currentTarget.getBoundingClientRect();
+              onSettingsChange({
+                ...settings,
+                customization: {
+                  ...customization,
+                  themeBackgroundPositionX: Math.min(100, Math.max(0, Math.round(((event.clientX - rect.left) / rect.width) * 100))),
+                  themeBackgroundPositionY: Math.min(100, Math.max(0, Math.round(((event.clientY - rect.top) / rect.height) * 100))),
+                },
+              });
+            }}
+            title="Geser untuk mengatur posisi background"
+          >
+            <img
+              src={customization.themeBackgroundImage}
+              alt="Pratinjau background tema"
+              draggable={false}
+              className="h-full w-full select-none object-cover"
+              style={{
+                objectPosition: `${customization.themeBackgroundPositionX ?? 50}% ${customization.themeBackgroundPositionY ?? 53}%`,
+              }}
+            />
+            <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px] text-white">
+              Geser gambar untuk mengatur posisi
+            </span>
+          </div>
         ) : (
           <div className="flex h-24 items-center justify-center rounded-md border border-dashed border-zinc-700 text-xs text-zinc-400">
             Background bawaan tema sedang digunakan.

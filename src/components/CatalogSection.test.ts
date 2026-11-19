@@ -43,3 +43,33 @@ test('motor without photo still remains visible in catalog results', () => {
   assert.equal(filtered.length, 2);
   assert.deepEqual(filtered.map((motor) => motor.id), ['motor-1', 'motor-2']);
 });
+
+test('catalog default sorting follows the admin sort order', () => {
+  const motors = [
+    {
+      id: 'motor-2',
+      name: 'Vario 125',
+      category: 'Matic',
+      description: 'Motor matik premium.',
+      specs: ['125cc'],
+      image: '',
+      sort_order: 2,
+      numericPrice: 22000000,
+      price: 'Rp 22.000.000',
+    },
+    {
+      id: 'motor-1',
+      name: 'Beat Street',
+      category: 'Matic',
+      description: 'Motor harian yang praktis.',
+      specs: ['110cc'],
+      image: '',
+      sort_order: 1,
+      numericPrice: 18000000,
+      price: 'Rp 18.000.000',
+    },
+  ] as any;
+
+  const filtered = filterCatalogMotors(motors, 'Semua', '', 'default');
+  assert.deepEqual(filtered.map((motor) => motor.id), ['motor-1', 'motor-2']);
+});

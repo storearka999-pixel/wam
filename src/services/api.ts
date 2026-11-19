@@ -301,6 +301,16 @@ export const api = {
     return true;
   },
 
+  async reorderMotors(orders: Array<{ id: string; sort_order: number }>): Promise<boolean> {
+    const res = await fetch('/api/motors/reorder', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ orders }),
+    });
+    if (!res.ok) throw new Error('Gagal menyimpan urutan motor');
+    return true;
+  },
+
   // Promos
   async getPromos(): Promise<Promo[]> {
     const [localResponse, globalResponse] = await Promise.all([

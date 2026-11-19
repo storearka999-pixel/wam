@@ -37,6 +37,8 @@ import {
   Sun,
   Moon,
   Instagram,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { Motor, Promo, Testimonial, DealerSettings, LeadInterest, ManifestoItem, AdminSession, AdminUser, AuditLog, FIFPriceList, SalesCounterSite, SeoLandingPage, SeoLandingPost } from '../types';
 import { api, formatRupiah } from '../services/api';
@@ -285,6 +287,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
       || Boolean(motor.is_bestseller) === (motorBestsellerFilter === 'bestseller');
     return matchesSearch && matchesCategory && matchesBestseller;
   });
+  const handleMoveMotor = async (motorId: string, direction: -1 | 1) => {
+    if (!canManageCatalog) return;
+    const categoryMotors = motors
+      .filter((motor) => motor.category === (motors.find((item) => item.id === motorId)?.category))
+      .sort((left, right) => {
+        const leftOrder = Number.isFinite(left.sort_order) ? Number(left.sort_order) : Number.MAX_SAFE_INTEGER;
+        const rightOrder = Number.isFinite(right.sort_order) ? Number(right.sort_order) : Number.MAX_SAFE_INTEGER;
+        return leftOrder - rightOrder;
+      });
+    const index = categoryMotors.findIndex((motor) => motor.id === motorId);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= categoryMotors.length) return;
+    [categoryMotors[index], categoryMotors[targetIndex]] = [categoryMotors[targetIndex], categoryMotors[index]];
+    const orders = categoryMotors.map((motor, order) => ({ id: motor.id, sort_order: order + 1 }));
+    try {
+      await api.reorderMotors(orders);
+      showToast(`Urutan motor berhasil diperbarui`);
+      await loadAllData();
+      onRefreshData();
+    } catch (err: any) {
+      alert('Gagal mengurutkan motor: ' + err.message);
+    }
+  };
   const activeSeoDomainSuffix = getAdminDomainSuffix();
   const seoPostEntries = (settings?.seoPages || [])
     .filter((page) => getSeoPageDomainSuffix(page) === activeSeoDomainSuffix)
@@ -2747,6 +2772,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           <th className="py-3.5 px-4">Harga OTR</th>
                           <th className="py-3.5 px-4">Spesifikasi</th>
                           <th className="py-3.5 px-4">Bestseller</th>
+                          {canManageCatalog && <th className="py-3.5 px-4 text-center">Urutan</th>}
                           {canManageCatalog && <th className="py-3.5 px-4 text-right">Aksi</th>}
                         </tr>
                       </thead>
@@ -2802,6 +2828,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                                   <span className="text-zinc-500 text-[11px]">Tidak</span>
                                 )}
                               </td>
+
+                              {canManageCatalog && <td className="py-3 px-4 text-center">
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveMotor(m.id, -1)}
+                                    className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                                    title="Pindahkan ke atas"
+                                    aria-label={`Pindahkan ${m.name} ke atas`}
+                                  >
+                                    <ArrowUp className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveMotor(m.id, 1)}
+                                    className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                                    title="Pindahkan ke bawah"
+                                    aria-label={`Pindahkan ${m.name} ke bawah`}
+                                  >
+                                    <ArrowDown className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>}
 
                               {canManageCatalog && <td className="py-3 px-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
@@ -3339,9 +3388,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                     </summary>
                     <div className="mt-4">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {(['instagram', 'facebook', 'youtube', 'x', 'linkedin'] as const).map((platform) => (
+                      {(['instagram', 'facebook', 'tiktok', 'youtube', 'x', 'linkedin'] as const).map((platform) => (
                         <label key={platform} className="text-xs font-semibold capitalize text-zinc-400">
-                          {platform === 'x' ? 'X / Twitter' : platform}
+                          {platform === 'x' ? 'X / Twitter' : platform === 'tiktok' ? 'TikTok' : platform}
                           <input
                             type="url"
                             value={settings.socialLinks?.[platform] || (platform === 'facebook' ? 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia' : platform === 'instagram' ? 'https://www.instagram.com/wijayaabadimulia' : '')}
@@ -3366,9 +3415,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                       <h2 className="text-lg font-bold text-white">Media Sosial Website</h2>
                       <p className="mt-1 text-xs text-zinc-400">Atur tombol media sosial yang tampil pada website akun ini.</p>
                       <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {(['instagram', 'facebook', 'youtube', 'x', 'linkedin'] as const).map((platform) => (
+                        {(['instagram', 'facebook', 'tiktok', 'youtube', 'x', 'linkedin'] as const).map((platform) => (
                           <label key={platform} className="text-xs font-semibold capitalize text-zinc-300">
-                            {platform === 'x' ? 'X / Twitter' : platform}
+                            {platform === 'x' ? 'X / Twitter' : platform === 'tiktok' ? 'TikTok' : platform}
                             <input
                               type="url"
                               value={settings?.socialLinks?.[platform] || (platform === 'facebook' ? 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia' : platform === 'instagram' ? 'https://www.instagram.com/wijayaabadimulia' : '')}

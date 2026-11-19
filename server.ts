@@ -2833,6 +2833,7 @@ async function startServer() {
       id: req.body.id || `motor-${Date.now()}`,
       name: req.body.name || 'New Honda Motor',
       category: req.body.category || 'Matic',
+      sort_order: ((db.motors || []).length + 1),
       price: req.body.price || 'Rp 20.000.000',
       numericPrice: req.body.numericPrice || Number(String(req.body.price).replace(/[^0-9]/g, '')) || 20000000,
       image: images[0] || '',
@@ -2852,6 +2853,28 @@ async function startServer() {
     }
     writeDb(db);
     res.status(201).json(newMotor);
+  });
+
+  app.put('/api/motors/reorder', requireCatalogWriteAccess, (req, res) => {
+    const orders = Array.isArray(req.body?.orders) ? req.body.orders : [];
+    if (orders.length === 0) return res.status(400).json({ error: 'Data urutan motor kosong.' });
+    const db = readDb();
+    const orderMap = new Map<string, number>();
+    for (const item of orders) {
+      const id = String(item?.id || '').trim();
+      const sortOrder = Number(item?.sort_order);
+      if (!id || !Number.isSafeInteger(sortOrder) || sortOrder < 1) {
+        return res.status(400).json({ error: 'Data urutan motor tidak valid.' });
+      }
+      orderMap.set(id, sortOrder);
+    }
+    db.motors = (db.motors || []).map((motor: any) => (
+      orderMap.has(String(motor.id))
+        ? { ...motor, sort_order: orderMap.get(String(motor.id)), updated_at: new Date().toISOString() }
+        : motor
+    ));
+    if (!writeDb(db)) return res.status(500).json({ error: 'Gagal menyimpan urutan motor.' });
+    res.json({ success: true });
   });
 
   app.put('/api/motors/:id', requireCatalogWriteAccess, (req, res) => {

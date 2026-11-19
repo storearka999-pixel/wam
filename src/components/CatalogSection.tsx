@@ -57,8 +57,13 @@ export function filterCatalogMotors(
 
       if (sortBy === 'price-asc') return priceA - priceB;
       if (sortBy === 'price-desc') return priceB - priceA;
-      if (sortBy === 'bestseller') return (b.is_bestseller ? 1 : 0) - (a.is_bestseller ? 1 : 0);
-      return 0;
+      const orderA = Number.isFinite(a.sort_order) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
+      const orderB = Number.isFinite(b.sort_order) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
+      if (sortBy === 'bestseller') {
+        const bestsellerDiff = (b.is_bestseller ? 1 : 0) - (a.is_bestseller ? 1 : 0);
+        if (bestsellerDiff !== 0) return bestsellerDiff;
+      }
+      return orderA - orderB;
     });
 }
 

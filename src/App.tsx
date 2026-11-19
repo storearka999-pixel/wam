@@ -837,6 +837,8 @@ export default function App() {
     '--theme-background-image': customization.themeBackgroundImage
       ? `url("${customization.themeBackgroundImage.replace(/"/g, '\\"')}")`
       : undefined,
+    '--theme-background-position-x': `${customization.themeBackgroundPositionX ?? 50}%`,
+    '--theme-background-position-y': `${customization.themeBackgroundPositionY ?? 53}%`,
   } as React.CSSProperties;
   const customizationClass = `site-font-${activePalette.font || 'jakarta'} hero-align-${customization.heroAlignment || 'left'} card-radius-${customization.cardRadius || 'round'} site-mode-${colorMode}`;
   const gradientMotionClass = settings.websiteTemplate === 'mulia-cerah' && customization.themeBackgroundAnimation !== false
