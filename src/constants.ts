@@ -5,6 +5,7 @@ export const MAX_HERO_IMAGES = 15;
 export const MAX_PROMO_IMAGES = 5;
 export const MAX_IMAGE_UPLOAD_BYTES = 100 * 1024 * 1024;
 export const MAX_ARTICLE_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const DEFAULT_TIKTOK_URL = 'https://www.tiktok.com/@welovehonda?lang=en';
 export const DEFAULT_FEATURED_MOTOR_ROTATION_INTERVAL = 20;
 export const MIN_FEATURED_MOTOR_ROTATION_INTERVAL = 5;
 export const MAX_FEATURED_MOTOR_ROTATION_INTERVAL = 60;

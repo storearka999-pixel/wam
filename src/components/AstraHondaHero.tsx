@@ -3,7 +3,7 @@ import { ArrowRight, BadgeCheck, Bike, Calculator, ChevronLeft, ChevronRight, Cl
 import type { DealerSettings, FIFPriceList, Motor, Promo } from '../types';
 import { getMotorOtrPrice } from '../services/fifPriceList';
 import { formatRupiah } from '../services/api';
-import { DEFAULT_FEATURED_MOTOR_ROTATION_INTERVAL, normalizeFeaturedMotorRotationInterval } from '../constants';
+import { DEFAULT_FEATURED_MOTOR_ROTATION_INTERVAL, DEFAULT_TIKTOK_URL, normalizeFeaturedMotorRotationInterval } from '../constants';
 import { createWhatsAppUrl } from '../utils/whatsapp';
 
 interface AstraHondaHeroProps {
@@ -44,7 +44,7 @@ export function AstraHondaTopBar({ settings }: Pick<AstraHondaHeroProps, 'settin
             <a href={settings.socialLinks?.youtube || 'https://www.youtube.com/@welovehondaindonesia'} target="_blank" rel="noopener noreferrer" aria-label="YouTube Honda"><Youtube aria-hidden="true" /></a>
             <a href={settings.socialLinks?.instagram || 'https://www.instagram.com/wijayaabadimulia'} target="_blank" rel="noopener noreferrer" aria-label="Instagram Honda"><Instagram aria-hidden="true" /></a>
             <a href={settings.socialLinks?.facebook || 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia'} target="_blank" rel="noopener noreferrer" aria-label="Facebook Honda"><Facebook aria-hidden="true" /></a>
-            <a href={settings.socialLinks?.tiktok || 'https://www.tiktok.com/@welovehonda?lang=en'} target="_blank" rel="noopener noreferrer" aria-label="TikTok Honda"><Music2 aria-hidden="true" /></a>
+            <a href={settings.socialLinks?.tiktok || DEFAULT_TIKTOK_URL} target="_blank" rel="noopener noreferrer" aria-label="TikTok Honda"><Music2 aria-hidden="true" /></a>
             <a href={settings.socialLinks?.x || 'https://x.com/welovehonda'} target="_blank" rel="noopener noreferrer" aria-label="X Honda"><span aria-hidden="true">𝕏</span></a>
             <a href="#katalog" aria-label="Cari motor"><Search aria-hidden="true" /></a>
           </div>

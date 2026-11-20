@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Clock, MessageSquare, Bike, ArrowUp, Facebook, Instagram, Linkedin, Youtube, Music2 } from 'lucide-react';
+import { DEFAULT_TIKTOK_URL } from '../constants';
 import { DealerSettings } from '../types';
 import { createWhatsAppUrl, normalizeWhatsAppNumber } from '../utils/whatsapp';
 
@@ -15,7 +16,7 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
     { label: 'Instagram', href: settings.socialLinks?.instagram || 'https://www.instagram.com/wijayaabadimulia', icon: Instagram },
     { label: 'Facebook', href: settings.socialLinks?.facebook || 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia', icon: Facebook },
     { label: 'YouTube', href: settings.socialLinks?.youtube || 'https://www.youtube.com/@welovehondaindonesia', icon: Youtube },
-    { label: 'TikTok', href: settings.socialLinks?.tiktok || 'https://www.tiktok.com/@welovehonda?lang=en', icon: Music2 },
+    { label: 'TikTok', href: settings.socialLinks?.tiktok || DEFAULT_TIKTOK_URL, icon: Music2 },
     { label: 'X', href: settings.socialLinks?.x || 'https://x.com/welovehonda', icon: null },
     { label: 'LinkedIn', href: settings.socialLinks?.linkedin || 'https://www.linkedin.com/company/pt-astra-honda-motor/', icon: Linkedin },
   ];

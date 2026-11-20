@@ -45,6 +45,7 @@ import { api, formatRupiah } from '../services/api';
 import { DEFAULT_FIF_PRICE_LIST, FIF_DP_PERCENTAGES, FIF_TENORS, getFIFPriceListModel, normalizeMotorOtrPrice } from '../services/fifPriceList';
 import {
   DEFAULT_FEATURED_MOTOR_ROTATION_INTERVAL,
+  DEFAULT_TIKTOK_URL,
   MAX_FEATURED_MOTOR_ROTATION_INTERVAL,
   MAX_MOTOR_IMAGES,
   MAX_PROMO_IMAGES,
@@ -3535,7 +3536,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           {platform === 'x' ? 'X / Twitter' : platform === 'tiktok' ? 'TikTok' : platform}
                           <input
                             type="url"
-                            value={settings.socialLinks?.[platform] || (platform === 'facebook' ? 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia' : platform === 'instagram' ? 'https://www.instagram.com/wijayaabadimulia' : '')}
+                            value={settings.socialLinks?.[platform] || (platform === 'facebook' ? 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia' : platform === 'instagram' ? 'https://www.instagram.com/wijayaabadimulia' : platform === 'tiktok' ? DEFAULT_TIKTOK_URL : '')}
                             onChange={(event) => setSettings({
                               ...settings,
                               socialLinks: { ...settings.socialLinks, [platform]: event.target.value },
@@ -3546,7 +3547,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                         </label>
                       ))}
                     </div>
-                    <p className="mt-2 text-[11px] text-zinc-500">Link sosial lain dapat dikosongkan untuk memakai akun bawaan. TikTok hanya tampil jika URL profilnya diisi.</p>
+                    <p className="mt-2 text-[11px] text-zinc-500">TikTok selalu tampil di website dengan link bawaan. Ganti URL di sini untuk memakai profil TikTok khusus situs ini.</p>
                     </div>
                   </details>
                   </>
@@ -3562,7 +3563,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                             {platform === 'x' ? 'X / Twitter' : platform === 'tiktok' ? 'TikTok' : platform}
                             <input
                               type="url"
-                              value={settings?.socialLinks?.[platform] || (platform === 'facebook' ? 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia' : platform === 'instagram' ? 'https://www.instagram.com/wijayaabadimulia' : '')}
+                              value={settings?.socialLinks?.[platform] || (platform === 'facebook' ? 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia' : platform === 'instagram' ? 'https://www.instagram.com/wijayaabadimulia' : platform === 'tiktok' ? DEFAULT_TIKTOK_URL : '')}
                               onChange={(event) => settings && setSettings({ ...settings, socialLinks: { ...settings.socialLinks, [platform]: event.target.value } })}
                               placeholder="https://..."
                               className="mt-1.5 w-full rounded-xl border border-white/10 bg-zinc-950 px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
@@ -3570,7 +3571,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                           </label>
                         ))}
                       </div>
-                      <p className="mt-2 text-[11px] text-zinc-500">Isi URL profil TikTok lalu simpan agar ikon TikTok tampil di website.</p>
+                      <p className="mt-2 text-[11px] text-zinc-500">TikTok selalu tampil dengan link bawaan. Ubah URL profil dan simpan jika situs ini menggunakan akun berbeda.</p>
                       <button type="button" onClick={() => settings && void handleSaveSettings({ preventDefault: () => {} } as React.FormEvent)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-red-500">
                         <Save className="h-4 w-4" /> Simpan Media Sosial
                       </button>
