@@ -42,6 +42,57 @@ const generalDealerKeywords = [
   'dealer motor Honda Cianjur',
 ];
 
+const popularBandungAndWestJavaKeywords = [
+  'motor Honda Bandung terbaik',
+  'motor Honda Bandung paling laris',
+  'harga OTR Honda Bandung',
+  'dealer Honda Bandung Barat',
+  'dealer Honda Cimahi',
+  'dealer Honda Soreang',
+  'dealer Honda Baleendah',
+  'dealer Honda Padalarang',
+  'dealer Honda Cicalengka',
+  'dealer Honda Majalaya',
+  'dealer Honda Rancaekek',
+  'dealer Honda Ujungberung',
+  'dealer Honda Buah Batu',
+  'dealer Honda Cibiru',
+  'dealer Honda Bandung Selatan',
+  'dealer Honda Bandung Timur',
+  'dealer Honda Bandung Utara',
+  'dealer Honda Jawa Barat',
+  'kredit motor Honda Bandung Jawa Barat',
+  'DP murah motor Honda Bandung',
+  'cicilan ringan motor Honda Bandung',
+  'promo Honda bulan ini Bandung',
+  'promo Honda terbaru Jawa Barat',
+  'harga motor Honda OTR Jawa Barat',
+  'simulasi kredit motor Honda Jawa Barat',
+  'dealer motor Honda Sumedang',
+  'dealer motor Honda Garut',
+  'dealer motor Honda Tasikmalaya',
+  'dealer motor Honda Cianjur',
+  'dealer motor Honda Sukabumi',
+  'dealer motor Honda Purwakarta',
+  'dealer motor Honda Karawang',
+  'dealer motor Honda Bekasi',
+  'dealer motor Honda Cirebon',
+  'dealer motor Honda Banjar',
+  'kredit motor Honda Cimahi',
+  'kredit motor Honda Soreang',
+  'kredit motor Honda Baleendah',
+  'kredit motor Honda Padalarang',
+  'kredit motor Honda Majalaya',
+  'kredit motor Honda Rancaekek',
+  'kredit motor Honda Garut',
+  'kredit motor Honda Tasikmalaya',
+  'kredit motor Honda Cianjur',
+  'kredit motor Honda Sukabumi',
+  'kredit motor Honda Purwakarta',
+  'kredit motor Honda Karawang',
+  'kredit motor Honda Cirebon',
+];
+
 const hondaModels = [
   { name: 'Beat', location: 'Bandung' },
   { name: 'Scoopy', location: 'Bandung' },
@@ -126,6 +177,7 @@ export function generateDealerSeoKeywords(
   const brand = normalizeBrandName(siteName);
   const keywords = [
     ...generalDealerKeywords,
+    ...popularBandungAndWestJavaKeywords,
     ...hondaModels.flatMap(({ name, location }) => modelSearchIntents.map((intent) => intent(name, location))),
     ...getBrandKeywords(brand, siteType),
   ];
@@ -152,7 +204,8 @@ export function getSiteSeoKeywords(
     siteType,
   );
   const customKeywords = configuredKeywords && configuredKeywords !== fallback.trim() ? configuredKeywords : '';
-  return combineSeoKeywords(defaultKeywords, customKeywords) || configuredKeywords || fallback;
+  const keywords = combineSeoKeywords(defaultKeywords, customKeywords);
+  return keywords.slice(0, MAX_SEO_KEYWORDS_LENGTH) || configuredKeywords || fallback;
 }
 
 export function combineSeoKeywords(...groups: Array<string | null | undefined>): string {

@@ -582,7 +582,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
       const createdHost = `${created.subdomain}.${created.domainSuffix}`;
       setOwnerDashboardHosts((current) => current.includes(createdHost) ? current : [...current, createdHost]);
       setSalesCounterForm({ name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoFocusKeyword: '', seoKeywords: '' });
-      showToast(`${created.siteType === 'pos' ? 'POS' : 'Sales Counter'} ${created.subdomain}.${created.domainSuffix} berhasil dibuat`);
+      showToast(created.posSubdomain
+        ? `Sales Counter ${created.subdomain}.${created.domainSuffix} dan POS ${created.posSubdomain}.${created.domainSuffix} berhasil dibuat`
+        : `${created.siteType === 'pos' ? 'POS' : 'Sales Counter'} ${created.subdomain}.${created.domainSuffix} berhasil dibuat`);
     } catch (error: any) {
       alert(error.message || 'Gagal membuat Sales Counter');
     } finally {

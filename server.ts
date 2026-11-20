@@ -1402,7 +1402,7 @@ async function provisionSeoPageSsl(page: any, settings: any): Promise<{ status: 
     return { status: 'pending', message: `A record ${hostname} harus mengarah ke IP yang sama dengan ${rootDomain}.` };
   }
 
-  const isSalesCounter = page.siteType === 'sales-counter';
+  const isSalesCounter = ['sales-counter', 'pos'].includes(page.siteType);
   const domainKey = domainSuffix.replace(/\./g, '-');
   const certName = isSalesCounter ? `sales-counter-${domainKey}-${subdomain}` : `seo-post-${subdomain}`;
   const certPath = `/etc/letsencrypt/live/${certName}/fullchain.pem`;
@@ -4286,6 +4286,13 @@ async function startServer() {
     const adminUserId = `admin-${Date.now()}-${suffix}`;
     const pageId = `sales-site-${Date.now()}-${suffix}`;
     const normalizedPhone = phone.startsWith('0') ? `62${phone.slice(1)}` : phone;
+    const posSubdomain = !parentSeoPageId ? `${subdomain}-pos`.slice(0, 63) : '';
+    if (posSubdomain && (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(posSubdomain)
+      || posSubdomain === subdomain
+      || currentPages.some((page: any) => page.subdomain === posSubdomain && getSeoPageDomainSuffix(page, domainSuffix) === domainSuffix)
+      || users.some((user: any) => String(user.username || '').toLocaleLowerCase('en-US') === `${username}-pos`.toLocaleLowerCase('en-US')))) {
+      return res.status(400).json({ error: 'Subdomain POS otomatis tidak valid atau sudah digunakan.' });
+    }
     const page: any = {
       id: pageId,
       siteType,
@@ -4324,6 +4331,9 @@ async function startServer() {
       sslStatus: 'pending',
       updated_at: now,
     };
+    if (!parentSeoPageId) {
+      page.posAdminUserIds = [];
+    }
     const newUser = {
       id: adminUserId,
       username,
@@ -4333,12 +4343,52 @@ async function startServer() {
       assignedHost: `${subdomain}.${domainSuffix}`,
       created_at: now,
     };
+    if (!parentSeoPageId) {
+      newUser.role = ADMIN_ROLE_POS;
+      page.posAdminUserIds = [adminUserId];
+    }
+
+    let posPage: any = null;
+    if (!parentSeoPageId) {
+      posPage = {
+        id: `pos-site-${Date.now()}-${suffix}`,
+        siteType: 'pos',
+        parentSeoPageId: pageId,
+        subdomain: posSubdomain,
+        domainSuffix,
+        adminUserId,
+        title: `${name} | POS Honda`,
+        content: '',
+        posts: [],
+        seoTitle: `${name} | POS Honda Bandung`.slice(0, 70),
+        seoDescription: `Hubungi ${name}, POS Honda Bandung. Konsultasi motor, harga, promo, dan simulasi kredit melalui WhatsApp.`.slice(0, 200),
+        seoFocusKeyword: `${name} POS Honda Bandung`.slice(0, 120),
+        seoKeywords: combineSeoKeywords(
+          generateDealerSeoKeywords(name, 'pos'),
+        ).slice(0, MAX_SEO_KEYWORDS_LENGTH),
+        seoRobots: 'index, follow',
+        siteSettings: {
+          ...page.siteSettings,
+          tagline: 'POS Resmi Honda Bandung',
+          heroBadge: 'POS HONDA',
+          heroMainTitle: 'Pengajuan Kredit',
+          heroTitleHighlight: 'Motor Honda Lebih Mudah',
+          footerText: `Hubungi ${name}, POS Honda Wijaya Abadi, untuk konsultasi motor dan pengajuan kredit.`,
+        },
+        sslStatus: 'pending',
+        updated_at: now,
+      };
+    }
 
     db.adminUsers = users;
     db.adminUsers.push(newUser);
-    db.settings.seoPages = [page, ...currentPages];
-    includeOwnerDashboardHosts(db, [`${subdomain}.${domainSuffix}`]);
-    appendAudit(db, { actor: session.username, action: 'CREATE_SALES_COUNTER', resource: pageId, details: `Membuat website Sales Counter ${name} (${subdomain}.${domainSuffix})` });
+    db.settings.seoPages = posPage ? [page, posPage, ...currentPages] : [page, ...currentPages];
+    includeOwnerDashboardHosts(db, posPage
+      ? [`${subdomain}.${domainSuffix}`, `${posSubdomain}.${domainSuffix}`]
+      : [`${subdomain}.${domainSuffix}`]);
+    appendAudit(db, { actor: session.username, action: 'CREATE_SALES_COUNTER', resource: pageId, details: posPage
+      ? `Membuat website Sales Counter ${name} (${subdomain}.${domainSuffix}) beserta POS ${posSubdomain}.${domainSuffix}`
+      : `Membuat website Sales Counter ${name} (${subdomain}.${domainSuffix})` });
     if (!writeDb(db)) return res.status(500).json({ error: 'Data Sales Counter gagal disimpan.' });
 
     let sslResult: { status: 'pending' | 'active' | 'failed'; message: string };
@@ -4350,6 +4400,23 @@ async function startServer() {
     page.sslStatus = sslResult.status;
     page.sslError = sslResult.status === 'active' ? undefined : sslResult.message;
     page.updated_at = new Date().toISOString();
+    if (posPage) {
+      try {
+        const posSslResult = await provisionSeoPageSsl(posPage, db.settings);
+        posPage.sslStatus = posSslResult.status;
+        posPage.sslError = posSslResult.status === 'active' ? undefined : posSslResult.message;
+      } catch (error: any) {
+        posPage.sslStatus = 'failed';
+        posPage.sslError = String(error.message || 'Konfigurasi HTTPS POS gagal.').slice(0, 500);
+      }
+      posPage.updated_at = new Date().toISOString();
+      appendAudit(db, {
+        actor: session.username,
+        action: 'PROVISION_POS_SSL',
+        resource: posPage.id,
+        details: `${posSubdomain}.${domainSuffix}: ${posPage.sslStatus}`,
+      });
+    }
     appendAudit(db, {
       actor: session.username,
       action: 'PROVISION_SALES_COUNTER_SSL',
@@ -4373,6 +4440,8 @@ async function startServer() {
       seoFocusKeyword: page.seoFocusKeyword,
       seoKeywords: page.seoKeywords,
       seoRobots: page.seoRobots,
+      posSubdomain: posPage?.subdomain || undefined,
+      posSslStatus: posPage?.sslStatus,
       sslStatus: page.sslStatus,
       sslError: page.sslError,
       updated_at: page.updated_at,

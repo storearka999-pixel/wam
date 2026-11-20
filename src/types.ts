@@ -128,6 +128,8 @@ export interface SalesCounterSite {
   phone: string;
   username: string;
   adminUserId: string;
+  posSubdomain?: string;
+  posSslStatus?: 'pending' | 'provisioning' | 'active' | 'failed';
   seoTitle?: string;
   seoDescription?: string;
   seoFocusKeyword?: string;
