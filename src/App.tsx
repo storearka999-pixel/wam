@@ -497,14 +497,14 @@ export default function App() {
     const title = hostSeoPost && hostSeoPost.id !== hostSeoPage?.id
       ? hostSeoPost.title
       : activeArticle
-        ? `${activeArticle.title} | ${settings.name || 'Honda Wijaya Abadi'}`
+        ? activeArticle.seoTitle?.trim() || `${activeArticle.title} | ${settings.name || 'Honda Wijaya Abadi'}`
         : hostSeoPage
           ? hostSeoPage.seoTitle?.trim() || hostSeoPage.title
           : activeLandingSeo?.title || settings.seoTitle?.trim() || DEFAULT_SEO_TITLE;
     const description = hostSeoPost && hostSeoPost.id !== hostSeoPage?.id
       ? hostSeoPost.content.trim().slice(0, 160)
       : activeArticle
-        ? activeArticle.excerpt || activeArticle.content.trim().slice(0, 160)
+        ? activeArticle.seoDescription?.trim() || activeArticle.excerpt || activeArticle.content.trim().slice(0, 160)
         : hostSeoPage
           ? hostSeoPage.seoDescription?.trim() || hostSeoPage.content.trim().slice(0, 160) || DEFAULT_SEO_DESCRIPTION
           : activeLandingSeo?.description || settings.seoDescription?.trim() || DEFAULT_SEO_DESCRIPTION;
