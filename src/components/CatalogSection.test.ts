@@ -44,7 +44,7 @@ test('motor without photo still remains visible in catalog results', () => {
   assert.deepEqual(filtered.map((motor) => motor.id), ['motor-1', 'motor-2']);
 });
 
-test('catalog follows the admin brand order without promoting bestseller motors', () => {
+test('catalog follows the single admin display order without promoting bestseller motors', () => {
   const motors = [
     {
       id: 'motor-2',
@@ -65,7 +65,7 @@ test('catalog follows the admin brand order without promoting bestseller motors'
       description: 'Motor harian yang praktis.',
       specs: ['110cc'],
       image: '',
-      sort_order: 1,
+      sort_order: 3,
       numericPrice: 18000000,
       price: 'Rp 18.000.000',
     },
@@ -83,5 +83,5 @@ test('catalog follows the admin brand order without promoting bestseller motors'
   ] as any;
 
   const filtered = filterCatalogMotors(motors, 'Semua', '', 'default');
-  assert.deepEqual(filtered.map((motor) => motor.id), ['motor-1', 'motor-2', 'motor-3']);
+  assert.deepEqual(filtered.map((motor) => motor.id), ['motor-3', 'motor-2', 'motor-1']);
 });

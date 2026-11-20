@@ -2893,6 +2893,9 @@ async function startServer() {
 
   app.post('/api/motors', requireCatalogWriteAccess, (req, res) => {
     const db = readDb();
+    const nextSortOrder = (db.motors || []).reduce((highest: number, motor: any) => (
+      Math.max(highest, Number.isSafeInteger(motor?.sort_order) ? Number(motor.sort_order) : 0)
+    ), 0) + 1;
     const images = normalizeMotorImages(req.body.images, [req.body.image]);
     if (images.some((image) => /^https?:\/\//i.test(image) && !isSharedCatalogImageUrl(image))) {
       return res.status(400).json({ error: 'Unggah gambar motor melalui panel admin agar tersimpan di server.' });
@@ -2904,7 +2907,7 @@ async function startServer() {
       id: req.body.id || `motor-${Date.now()}`,
       name: req.body.name || 'New Honda Motor',
       category: req.body.category || 'Matic',
-      sort_order: ((db.motors || []).length + 1),
+      sort_order: nextSortOrder,
       price: req.body.price || 'Rp 20.000.000',
       numericPrice: req.body.numericPrice || Number(String(req.body.price).replace(/[^0-9]/g, '')) || 20000000,
       image: images[0] || '',

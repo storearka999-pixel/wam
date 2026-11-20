@@ -57,11 +57,11 @@ export function filterCatalogMotors(
 
       if (sortBy === 'price-asc') return priceA - priceB;
       if (sortBy === 'price-desc') return priceB - priceA;
-      const categoryOrder = a.category.localeCompare(b.category, 'id');
-      if (categoryOrder !== 0) return categoryOrder;
       const orderA = Number.isFinite(a.sort_order) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
       const orderB = Number.isFinite(b.sort_order) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
-      return orderA - orderB;
+      return orderA - orderB
+        || a.category.localeCompare(b.category, 'id')
+        || a.name.localeCompare(b.name, 'id');
     });
 }
 

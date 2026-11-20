@@ -235,7 +235,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const [editingSalesCounterSeoId, setEditingSalesCounterSeoId] = useState<string | null>(null);
   const [salesCounterSeoForm, setSalesCounterSeoForm] = useState({ seoTitle: '', seoDescription: '', seoFocusKeyword: '', seoKeywords: '', seoRobots: 'index, follow' });
   const [isSavingSalesCounterSeo, setIsSavingSalesCounterSeo] = useState(false);
-  const [salesCounterForm, setSalesCounterForm] = useState({ siteType: 'pos' as 'pos' | 'sales-counter', name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoFocusKeyword: '', seoKeywords: '' });
+  const [salesCounterForm, setSalesCounterForm] = useState({ name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoFocusKeyword: '', seoKeywords: '' });
   const [isSavingSalesCounter, setIsSavingSalesCounter] = useState(false);
   const salesCounterDomainSuffix = getSalesCounterDomainSuffix(window.location.hostname);
   const canManageSalesCounters = (isSuperAdmin && Boolean(salesCounterDomainSuffix)) || isPosSuperAdmin;
@@ -288,25 +288,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     const matchesBestseller = motorBestsellerFilter === 'all'
       || Boolean(motor.is_bestseller) === (motorBestsellerFilter === 'bestseller');
     return matchesSearch && matchesCategory && matchesBestseller;
-  }).sort((left, right) => (
-    left.category.localeCompare(right.category, 'id')
-    || (Number.isFinite(left.sort_order) ? Number(left.sort_order) : Number.MAX_SAFE_INTEGER)
-      - (Number.isFinite(right.sort_order) ? Number(right.sort_order) : Number.MAX_SAFE_INTEGER)
-  ));
+  }).sort((left, right) => {
+    const leftOrder = Number.isFinite(left.sort_order) ? Number(left.sort_order) : Number.MAX_SAFE_INTEGER;
+    const rightOrder = Number.isFinite(right.sort_order) ? Number(right.sort_order) : Number.MAX_SAFE_INTEGER;
+    return leftOrder - rightOrder
+      || left.name.localeCompare(right.name, 'id');
+  });
   const handleMoveMotor = async (motorId: string, direction: -1 | 1) => {
     if (!canManageCatalog) return;
-    const categoryMotors = motors
-      .filter((motor) => motor.category === (motors.find((item) => item.id === motorId)?.category))
+    const orderedMotors = [...motors]
       .sort((left, right) => {
         const leftOrder = Number.isFinite(left.sort_order) ? Number(left.sort_order) : Number.MAX_SAFE_INTEGER;
         const rightOrder = Number.isFinite(right.sort_order) ? Number(right.sort_order) : Number.MAX_SAFE_INTEGER;
-        return leftOrder - rightOrder;
+        return leftOrder - rightOrder
+          || left.name.localeCompare(right.name, 'id');
       });
-    const index = categoryMotors.findIndex((motor) => motor.id === motorId);
+    const index = orderedMotors.findIndex((motor) => motor.id === motorId);
     const targetIndex = index + direction;
-    if (index < 0 || targetIndex < 0 || targetIndex >= categoryMotors.length) return;
-    [categoryMotors[index], categoryMotors[targetIndex]] = [categoryMotors[targetIndex], categoryMotors[index]];
-    const orders = categoryMotors.map((motor, order) => ({ id: motor.id, sort_order: order + 1 }));
+    if (index < 0 || targetIndex < 0 || targetIndex >= orderedMotors.length) return;
+    [orderedMotors[index], orderedMotors[targetIndex]] = [orderedMotors[targetIndex], orderedMotors[index]];
+    const orders = orderedMotors.map((motor, order) => ({ id: motor.id, sort_order: order + 1 }));
     try {
       await api.reorderMotors(orders);
       showToast(`Urutan motor berhasil diperbarui`);
@@ -552,7 +553,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
       setSalesCounters((current) => [created, ...current.filter((counter) => counter.id !== created.id)]);
       const createdHost = `${created.subdomain}.${created.domainSuffix}`;
       setOwnerDashboardHosts((current) => current.includes(createdHost) ? current : [...current, createdHost]);
-      setSalesCounterForm({ siteType: isPosSuperAdmin ? 'sales-counter' : 'pos', name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoFocusKeyword: '', seoKeywords: '' });
+      setSalesCounterForm({ name: '', phone: '', username: '', password: '', subdomain: '', seoTitle: '', seoDescription: '', seoFocusKeyword: '', seoKeywords: '' });
       showToast(`${created.siteType === 'pos' ? 'POS' : 'Sales Counter'} ${created.subdomain}.${created.domainSuffix} berhasil dibuat`);
     } catch (error: any) {
       alert(error.message || 'Gagal membuat Sales Counter');
@@ -2866,6 +2867,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
 
                               {canManageCatalog && <td className="py-3 px-4 text-center">
                                 <div className="inline-flex items-center gap-1">
+                                  <span className="mr-1 min-w-6 text-center font-bold text-zinc-300" title="Urutan tampil di katalog">
+                                    {Number.isFinite(m.sort_order) ? Number(m.sort_order) : '-'}
+                                  </span>
                                   <button
                                     type="button"
                                     onClick={() => handleMoveMotor(m.id, -1)}
