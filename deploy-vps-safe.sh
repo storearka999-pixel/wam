@@ -485,7 +485,6 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl reset-failed "$ID_SERVICE" || true
 sudo systemctl stop "$ID_SERVICE" || true
-sudo pkill -f "server\.cjs.*3003|PORT=3003" || true
 sudo systemctl enable "$ID_SERVICE"
 sudo systemctl restart "$ID_SERVICE"
 if ! systemctl is-active --quiet "$ID_SERVICE" \

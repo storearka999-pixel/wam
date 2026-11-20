@@ -160,7 +160,7 @@ Tambahkan secrets di repo GitHub:
 
 - `VPS_HOST`
 - `VPS_USER`
-- `VPS_SSH_KEY`
+- `VPS_SSH_KEY` or `VPS_SSH_KEY_B64` (private key, raw or base64-encoded)
 - `VPS_KNOWN_HOSTS` (host key VPS, diperoleh dan diverifikasi sebelum disimpan)
 - `CERTBOT_EMAIL` (opsional; default `admin@kreditmotorhonda.tech`)
 
@@ -189,6 +189,6 @@ VPS_SSH_KEY=-----BEGIN OPENSSH PRIVATE KEY-----
 -----END OPENSSH PRIVATE KEY-----
 ```
 
-Setelah itu, push ke branch `main` dan workflow akan otomatis menjalankan deploy.
+Setelah itu, push ke branch `main` atau `copilot/seo-pos-auto` dan workflow akan otomatis menjalankan deploy.
 
 Sebelum workflow pertama kali dijalankan, siapkan `.env` di `/var/www/wijaya.kreditmotorhonda.id` pada VPS. Workflow tidak membuat atau menimpa `.env`; deploy berhenti jika file tersebut belum tersedia. Database dan upload disimpan terpisah di `/var/lib/honda-wijaya-abadi` agar tidak tertimpa saat deploy. Pastikan DNS A record sudah aktif agar Certbot dapat menerbitkan sertifikat.

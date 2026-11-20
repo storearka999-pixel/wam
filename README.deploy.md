@@ -158,7 +158,7 @@ Tambahkan secrets berikut di GitHub repo:
 
 - `VPS_HOST`
 - `VPS_USER`
-- `VPS_SSH_KEY`
+- `VPS_SSH_KEY` or `VPS_SSH_KEY_B64` (private key, raw or base64-encoded)
 - `VPS_KNOWN_HOSTS` (host key VPS, diperoleh dan diverifikasi sebelum disimpan)
 - `CERTBOT_EMAIL` (opsional; default `admin@kreditmotorhonda.tech`)
 
@@ -178,7 +178,7 @@ nano .env
 Ganti nilai contoh dengan konfigurasi production. Repo harus dapat di-clone dan di-fetch oleh user VPS melalui HTTPS; untuk repo privat, siapkan kredensial/deploy key baca-saja GitHub pada VPS. Workflow tidak menaruh token GitHub di server.
 
 
-Setelah itu, setiap push ke branch `main` akan otomatis deploy ke VPS.
+Setelah itu, setiap push ke branch `main` atau `copilot/seo-pos-auto` akan otomatis deploy ke VPS.
 
 ## 12. Kreditmotorhonda.id (DNS ditunda)
 
