@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Admin entry points must remain accessible by direct route, but not advertised on public websites. */
+.website-shell a[href="/admin"],
+.website-shell a[href="/login"],
+.website-shell a[href="/masuk"],
+.website-shell a[href$="/admin"],
+.website-shell a[href$="/login"],
+.website-shell a[href$="/masuk"] {
+  display: none !important;
+}
+
 html {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;

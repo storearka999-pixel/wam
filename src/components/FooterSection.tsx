@@ -15,7 +15,7 @@ export const FooterSection: React.FC<FooterSectionProps> = ({ settings }) => {
     { label: 'Instagram', href: settings.socialLinks?.instagram || 'https://www.instagram.com/wijayaabadimulia', icon: Instagram },
     { label: 'Facebook', href: settings.socialLinks?.facebook || 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia', icon: Facebook },
     { label: 'YouTube', href: settings.socialLinks?.youtube || 'https://www.youtube.com/@welovehondaindonesia', icon: Youtube },
-    ...(settings.socialLinks?.tiktok ? [{ label: 'TikTok', href: settings.socialLinks.tiktok, icon: Music2 }] : []),
+    { label: 'TikTok', href: settings.socialLinks?.tiktok || 'https://www.tiktok.com/@welovehonda?lang=en', icon: Music2 },
     { label: 'X', href: settings.socialLinks?.x || 'https://x.com/welovehonda', icon: null },
     { label: 'LinkedIn', href: settings.socialLinks?.linkedin || 'https://www.linkedin.com/company/pt-astra-honda-motor/', icon: Linkedin },
   ];

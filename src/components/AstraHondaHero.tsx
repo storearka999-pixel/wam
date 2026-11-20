@@ -44,9 +44,7 @@ export function AstraHondaTopBar({ settings }: Pick<AstraHondaHeroProps, 'settin
             <a href={settings.socialLinks?.youtube || 'https://www.youtube.com/@welovehondaindonesia'} target="_blank" rel="noopener noreferrer" aria-label="YouTube Honda"><Youtube aria-hidden="true" /></a>
             <a href={settings.socialLinks?.instagram || 'https://www.instagram.com/wijayaabadimulia'} target="_blank" rel="noopener noreferrer" aria-label="Instagram Honda"><Instagram aria-hidden="true" /></a>
             <a href={settings.socialLinks?.facebook || 'https://www.facebook.com/people/Honda-wijaya-abadi-mulia'} target="_blank" rel="noopener noreferrer" aria-label="Facebook Honda"><Facebook aria-hidden="true" /></a>
-            {settings.socialLinks?.tiktok && (
-              <a href={settings.socialLinks.tiktok} target="_blank" rel="noopener noreferrer" aria-label="TikTok Honda"><Music2 aria-hidden="true" /></a>
-            )}
+            <a href={settings.socialLinks?.tiktok || 'https://www.tiktok.com/@welovehonda?lang=en'} target="_blank" rel="noopener noreferrer" aria-label="TikTok Honda"><Music2 aria-hidden="true" /></a>
             <a href={settings.socialLinks?.x || 'https://x.com/welovehonda'} target="_blank" rel="noopener noreferrer" aria-label="X Honda"><span aria-hidden="true">𝕏</span></a>
             <a href="#katalog" aria-label="Cari motor"><Search aria-hidden="true" /></a>
           </div>

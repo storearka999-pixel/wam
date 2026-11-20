@@ -275,6 +275,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
   const [motorSearch, setMotorSearch] = useState('');
   const [motorCategoryFilter, setMotorCategoryFilter] = useState('all');
   const [motorBestsellerFilter, setMotorBestsellerFilter] = useState('all');
+  const [motorToReorder, setMotorToReorder] = useState('');
+  const [motorTargetPosition, setMotorTargetPosition] = useState('1');
   const motorCategories = Array.from(new Set(motors.map((motor) => String(motor.category || '').trim()).filter(Boolean)))
     .sort((left, right) => left.localeCompare(right, 'id'));
   const normalizedMotorSearch = motorSearch.trim().toLocaleLowerCase('id-ID');
@@ -294,15 +296,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     return leftOrder - rightOrder
       || left.name.localeCompare(right.name, 'id');
   });
+  const orderedCatalogMotors = [...motors].sort((left, right) => {
+    const leftOrder = Number.isFinite(left.sort_order) ? Number(left.sort_order) : Number.MAX_SAFE_INTEGER;
+    const rightOrder = Number.isFinite(right.sort_order) ? Number(right.sort_order) : Number.MAX_SAFE_INTEGER;
+    return leftOrder - rightOrder
+      || left.name.localeCompare(right.name, 'id');
+  });
   const handleMoveMotor = async (motorId: string, direction: -1 | 1) => {
     if (!canManageCatalog) return;
-    const orderedMotors = [...motors]
-      .sort((left, right) => {
-        const leftOrder = Number.isFinite(left.sort_order) ? Number(left.sort_order) : Number.MAX_SAFE_INTEGER;
-        const rightOrder = Number.isFinite(right.sort_order) ? Number(right.sort_order) : Number.MAX_SAFE_INTEGER;
-        return leftOrder - rightOrder
-          || left.name.localeCompare(right.name, 'id');
-      });
+    const orderedMotors = [...orderedCatalogMotors];
     const index = orderedMotors.findIndex((motor) => motor.id === motorId);
     const targetIndex = index + direction;
     if (index < 0 || targetIndex < 0 || targetIndex >= orderedMotors.length) return;
@@ -311,6 +313,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
     try {
       await api.reorderMotors(orders);
       showToast(`Urutan motor berhasil diperbarui`);
+      await loadAllData();
+      onRefreshData();
+    } catch (err: any) {
+      alert('Gagal mengurutkan motor: ' + err.message);
+    }
+  };
+  const handleSetMotorOrder = async (motorId: string, rawPosition: string) => {
+    if (!canManageCatalog) return;
+    const position = Number(rawPosition);
+    const orderedMotors = [...orderedCatalogMotors];
+    if (!Number.isSafeInteger(position) || position < 1 || position > orderedMotors.length) {
+      alert(`Posisi urutan harus antara 1 sampai ${orderedMotors.length}.`);
+      await loadAllData();
+      return;
+    }
+    const currentIndex = orderedMotors.findIndex((motor) => motor.id === motorId);
+    if (currentIndex < 0) return;
+    const [motor] = orderedMotors.splice(currentIndex, 1);
+    orderedMotors.splice(position - 1, 0, motor);
+    const orders = orderedMotors.map((motorAtPosition, order) => ({
+      id: motorAtPosition.id,
+      sort_order: order + 1,
+    }));
+    try {
+      await api.reorderMotors(orders);
+      showToast(`Motor dipindahkan ke urutan ${position}`);
       await loadAllData();
       onRefreshData();
     } catch (err: any) {
@@ -2798,6 +2826,59 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
                   </div>
                 </div>
 
+                {isSuperAdmin && (
+                  <section className="flex flex-col gap-3 rounded-2xl border border-red-500/20 bg-red-500/5 p-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                      <h2 className="text-sm font-bold text-white">Atur Urutan Motor</h2>
+                      <p className="mt-1 text-xs text-zinc-400">Pilih motor dan posisi tampilannya pada katalog utama.</p>
+                    </div>
+                    {canManageCatalog ? (
+                      <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                        <select
+                          aria-label="Motor yang akan dipindahkan"
+                          value={motorToReorder}
+                          onChange={(event) => setMotorToReorder(event.target.value)}
+                          className="min-w-0 rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none sm:w-64"
+                        >
+                          <option value="">Pilih motor</option>
+                          {orderedCatalogMotors.map((motor) => (
+                            <option key={motor.id} value={motor.id}>{motor.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          aria-label="Posisi urutan motor"
+                          value={motorTargetPosition}
+                          onChange={(event) => setMotorTargetPosition(event.target.value)}
+                          className="rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
+                        >
+                          {orderedCatalogMotors.map((motor, index) => (
+                            <option key={motor.id} value={String(index + 1)}>Posisi {index + 1}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!motorToReorder}
+                          onClick={() => {
+                            if (motorToReorder) void handleSetMotorOrder(motorToReorder, motorTargetPosition);
+                          }}
+                          className="shrink-0 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Simpan Urutan
+                        </button>
+                      </div>
+                    ) : (
+                      <a
+                        href={catalogAdminUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-500"
+                      >
+                        Buka Admin Katalog Pusat
+                      </a>
+                    )}
+                  </section>
+                )}
+
                 <div className="bg-zinc-900/50 border border-white/10 rounded-3xl overflow-hidden shadow-xl">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
@@ -2867,9 +2948,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToWebsite, onRefre
 
                               {canManageCatalog && <td className="py-3 px-4 text-center">
                                 <div className="inline-flex items-center gap-1">
-                                  <span className="mr-1 min-w-6 text-center font-bold text-zinc-300" title="Urutan tampil di katalog">
-                                    {Number.isFinite(m.sort_order) ? Number(m.sort_order) : '-'}
-                                  </span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={motors.length}
+                                    defaultValue={orderedCatalogMotors.findIndex((motor) => motor.id === m.id) + 1}
+                                    key={`${m.id}-${orderedCatalogMotors.findIndex((motor) => motor.id === m.id) + 1}`}
+                                    aria-label={`Urutan tampil ${m.name}`}
+                                    title="Masukkan nomor urutan lalu tekan Enter"
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        event.currentTarget.blur();
+                                      }
+                                    }}
+                                    onBlur={(event) => {
+                                      const position = Number(event.currentTarget.value);
+                                      const currentPosition = orderedCatalogMotors.findIndex((motor) => motor.id === m.id) + 1;
+                                      if (position !== currentPosition) {
+                                        void handleSetMotorOrder(m.id, event.currentTarget.value);
+                                      }
+                                    }}
+                                    className="h-8 w-14 rounded-lg border border-white/10 bg-zinc-950 px-2 text-center text-xs font-bold text-zinc-200 focus:border-red-500 focus:outline-none"
+                                  />
                                   <button
                                     type="button"
                                     onClick={() => handleMoveMotor(m.id, -1)}
